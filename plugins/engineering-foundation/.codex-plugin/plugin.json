@@ -1,0 +1,41 @@
+{
+  "name": "engineering-foundation",
+  "version": "0.1.0",
+  "description": "Focused engineering workflows with bounded delegation and evidence-based completion.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "engineering",
+    "skills",
+    "multi-agent",
+    "verification",
+    "laravel",
+    "design"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Engineering Foundation",
+    "shortDescription": "Plan less, change surgically, verify with evidence",
+    "longDescription": "Provider-neutral software engineering workflows for task routing, bounded planning, minimal implementation, debugging, review, Laravel, corporate UI design, Codex Cloud, and evidence-based completion.",
+    "developerName": "EgoistDeveloper",
+    "category": "Development",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+    "defaultPrompt": [
+      "Route this task and make the smallest verified change",
+      "Review this diff against its goal and repository rules",
+      "Create one corporate UI direction and verify it"
+    ],
+    "brandColor": "#1F2937",
+    "screenshots": []
+  }
+}

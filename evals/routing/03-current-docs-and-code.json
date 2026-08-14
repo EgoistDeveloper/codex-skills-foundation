@@ -1,0 +1,10 @@
+{
+  "name": "current-docs-and-code",
+  "risk": "medium",
+  "uncertainty": "medium",
+  "estimated_files": 5,
+  "independent_workstreams": 1,
+  "shared_write_surface": true,
+  "external_research": true,
+  "expected_mode": "single-agent-with-specialists"
+}

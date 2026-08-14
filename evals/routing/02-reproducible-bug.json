@@ -1,0 +1,10 @@
+{
+  "name": "reproducible-bug",
+  "risk": "medium",
+  "uncertainty": "low",
+  "estimated_files": 4,
+  "independent_workstreams": 1,
+  "shared_write_surface": true,
+  "read_heavy": false,
+  "expected_mode": "single-agent"
+}

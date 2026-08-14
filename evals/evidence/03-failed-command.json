@@ -1,0 +1,25 @@
+{
+  "expected_pass": false,
+  "goal": "Complete a migration while a database lane is failing.",
+  "requirements": [
+    {
+      "id": "R1",
+      "status": "fail",
+      "evidence": [
+        "MySQL migration test failed"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "command": "composer test:mysql",
+      "exit_code": 1,
+      "fresh": true,
+      "summary": "1 migration test failed"
+    }
+  ],
+  "diff_reviewed": true,
+  "unresolved": [
+    "MySQL rollback path is not safe"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-foundation",
+  "version": "0.1.0",
+  "description": "Focused software engineering workflows with bounded delegation, surgical implementation, and evidence-based completion.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "codex",
+    "claude-code",
+    "hermes",
+    "software-engineering",
+    "multi-agent",
+    "laravel",
+    "ui-design",
+    "verification"
+  ],
+  "extensions": {
+    "com.openai.codex": {
+      "manifest": "./.codex-plugin/plugin.json"
+    },
+    "com.anthropic.claude-code": {
+      "manifest": "./.claude-plugin/plugin.json"
+    }
+  }
+}

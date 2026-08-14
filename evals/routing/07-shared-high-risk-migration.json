@@ -1,0 +1,13 @@
+{
+  "name": "shared-high-risk-migration",
+  "risk": "high",
+  "uncertainty": "high",
+  "estimated_files": 16,
+  "independent_workstreams": 3,
+  "shared_write_surface": true,
+  "irreversible": true,
+  "specialist_domains": [
+    "laravel"
+  ],
+  "expected_mode": "single-agent-with-specialists"
+}

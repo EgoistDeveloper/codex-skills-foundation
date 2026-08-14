@@ -1,0 +1,12 @@
+{
+  "name": "explicit-no-subagents",
+  "risk": "critical",
+  "uncertainty": "high",
+  "estimated_files": 20,
+  "independent_workstreams": 4,
+  "shared_write_surface": false,
+  "read_heavy": true,
+  "external_research": true,
+  "explicit_no_subagents": true,
+  "expected_mode": "single-agent"
+}

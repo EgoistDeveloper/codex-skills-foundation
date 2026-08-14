@@ -1,0 +1,31 @@
+{
+  "expected_pass": true,
+  "goal": "Add validated user creation without unrelated refactoring.",
+  "requirements": [
+    {
+      "id": "R1",
+      "status": "pass",
+      "evidence": [
+        "tests/Feature/UserCreateTest.php: invalid email is rejected"
+      ]
+    },
+    {
+      "id": "R2",
+      "status": "pass",
+      "evidence": [
+        "git diff --stat shows only request, controller, and test files"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "command": "php artisan test --filter=UserCreateTest",
+      "exit_code": 0,
+      "fresh": true,
+      "summary": "3 tests passed, 0 failed"
+    }
+  ],
+  "diff_reviewed": true,
+  "unresolved": [],
+  "limitations": []
+}

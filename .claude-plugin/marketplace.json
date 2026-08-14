@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "egoistdeveloper-foundation",
+  "description": "Focused engineering workflows, bounded delegation, verification gates, Laravel guidance, and corporate UI design.",
+  "owner": {
+    "name": "EgoistDeveloper"
+  },
+  "plugins": [
+    {
+      "name": "engineering-foundation",
+      "description": "Provider-neutral software engineering workflows with narrow specialist agents and evidence-based completion.",
+      "author": {
+        "name": "EgoistDeveloper"
+      },
+      "category": "development",
+      "source": "./plugins/engineering-foundation",
+      "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation"
+    }
+  ]
+}

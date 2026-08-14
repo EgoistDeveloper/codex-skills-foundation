@@ -1,0 +1,21 @@
+{
+  "expected_pass": false,
+  "goal": "Claim a feature is complete without proof.",
+  "requirements": [
+    {
+      "id": "R1",
+      "status": "pass",
+      "evidence": []
+    }
+  ],
+  "commands": [
+    {
+      "command": "php artisan test",
+      "exit_code": 0,
+      "fresh": false,
+      "summary": "Old run"
+    }
+  ],
+  "diff_reviewed": false,
+  "unresolved": []
+}

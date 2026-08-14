@@ -1,0 +1,20 @@
+{
+  "name": "egoistdeveloper-foundation",
+  "interface": {
+    "displayName": "EgoistDeveloper Engineering"
+  },
+  "plugins": [
+    {
+      "name": "engineering-foundation",
+      "source": {
+        "source": "local",
+        "path": "./plugins/engineering-foundation"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    }
+  ]
+}
