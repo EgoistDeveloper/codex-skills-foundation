@@ -48,7 +48,7 @@ The command deliberately requires `--confirm-live` because it runs two real mode
 9. Runs `scripts/score_eval_runs.py` on the baseline and candidate rows.
 10. Restores the original plugin, marketplace, and `config.toml` state even when the run fails.
 
-The harness never copies authentication files or prints credentials.
+The harness never copies authentication files or prints credentials. The candidate `subject_commit` is the exact checked-out repository revision used to materialize the local plugin, rather than an older release tag that merely happens to advertise the same package version.
 
 ## Artifacts
 
