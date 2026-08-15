@@ -12,19 +12,24 @@ model-free preflights before the established negative-trigger campaign:
 1. Start an ephemeral app-server thread without a model turn.
 2. Read the effective thread MCP inventory through `mcpServerStatus/list`.
 3. Merge those names with the direct `config.toml` MCP names.
-4. Represent every merged name as a transport-complete disabled MCP row. Codex
-   requires `command` or `url` even when `enabled = false`; an inert placeholder
-   command is therefore retained only as structural metadata and is never
-   launched.
-5. Start a second ephemeral thread and require the complete name veto to expose
-   no tools before either authenticated model turn is allowed to begin.
-6. Delegate to the existing two-turn baseline-versus-core harness using the
-   same validated name veto.
+4. Represent every merged name as a transport-complete disabled MCP row in the
+   app-server startup layer. Codex requires `command` or `url` even when
+   `enabled = false`; an inert placeholder command is retained only as
+   structural metadata and is never launched.
+5. Omit top-level MCP rows from the later thread/session configuration layer.
+   A partial thread row such as `{ enabled = false }` replaces the complete
+   startup row rather than extending it, which otherwise produces
+   `invalid transport` during `thread/start`.
+6. Start a second ephemeral thread and require the complete startup name veto to
+   expose no tools before either authenticated model turn is allowed to begin.
+7. Delegate to the existing two-turn baseline-versus-core harness using the
+   same validated startup veto and the same startup-only thread policy.
 
 The preflight writes
 `preflight/runtime-mcp-inventory.json` inside the campaign directory. The file
 records the direct names, runtime rows, transport-complete startup overrides,
-veto-validation inventory, and `model_calls: 0`.
+that thread MCP overrides were omitted, veto-validation inventory, and
+`model_calls: 0`.
 
 The Codex MCP catalog intentionally preserves a disabled configured winner as a
 name veto when a later compatibility or extension registration uses the same

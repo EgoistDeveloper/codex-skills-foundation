@@ -20,6 +20,7 @@
 - Moved configured MCP-server isolation to app-server startup after thread-scoped disablement proved too late for eager MCP initialization.
 - Added an app-server effective-plugin inventory pass so API-curated plugins omitted by the CLI installed list, plus their plugin-provided MCP servers, are disabled before measured negative-smoke execution.
 - Added a model-free runtime MCP inventory pass for compatibility and extension registrations, then converted the discovered names into transport-complete disabled rows and required a second model-free veto validation before live turns may start.
+- Kept top-level MCP vetoes exclusively in the app-server startup layer so partial thread/session rows cannot replace valid transports during `thread/start`.
 
 ## 0.2.1 - 2026-08-15
 

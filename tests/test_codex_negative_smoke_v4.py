@@ -136,6 +136,7 @@ class FakeVetoAppServer:
     expected_home = Path(".").resolve()
     start_turn_calls = 0
     leak_tools = False
+    last_session_config: dict[str, Any] = {}
 
     def __init__(
         self,
@@ -170,7 +171,7 @@ class FakeVetoAppServer:
         service_tier: str | None,
         session_config: dict[str, Any],
     ) -> dict[str, Any]:
-        self.session_config = session_config
+        type(self).last_session_config = session_config
         return {"thread": {"id": "veto-thread"}}
 
     def start_turn(self, **_: Any) -> None:
@@ -195,8 +196,8 @@ class FakeVetoAppServer:
 
 
 class CodexNegativeSmokeV4Tests(unittest.TestCase):
-    def test_case_revision_is_five(self) -> None:
-        self.assertEqual(module.CASE_REVISION, 5)
+    def test_case_revision_is_six(self) -> None:
+        self.assertEqual(module.CASE_REVISION, 6)
 
     def test_status_inventory_is_paginated_deduplicated_and_attributed(self) -> None:
         server = PagingServer()
@@ -289,6 +290,49 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
         self.assertFalse(table["codebase-memory-mcp"]["enabled"])
         self.assertIn("command", table["fable-advisor-python3"])
 
+    def test_startup_only_session_builder_omits_thread_mcp_rows(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def original_builder(
+            *,
+            disabled_skill_paths: list[str],
+            mcp_server_names: list[str],
+        ) -> dict[str, Any]:
+            captured["disabled_skill_paths"] = list(disabled_skill_paths)
+            captured["mcp_server_names"] = list(mcp_server_names)
+            config: dict[str, Any] = {
+                "features": {"plugins": False},
+            }
+            if disabled_skill_paths:
+                config["skills"] = {
+                    "config": [
+                        {"path": path, "enabled": False}
+                        for path in disabled_skill_paths
+                    ]
+                }
+            if mcp_server_names:
+                config["mcp_servers"] = {
+                    name: {"enabled": False}
+                    for name in mcp_server_names
+                }
+            return config
+
+        builder = module.startup_only_session_config_builder(original_builder)
+        config = builder(
+            disabled_skill_paths=["C:/skills/foreign/SKILL.md"],
+            mcp_server_names=["codex_apps", "fable-advisor-python3"],
+        )
+        self.assertEqual(
+            captured["disabled_skill_paths"],
+            ["C:/skills/foreign/SKILL.md"],
+        )
+        self.assertEqual(captured["mcp_server_names"], [])
+        self.assertNotIn("mcp_servers", config)
+        self.assertEqual(
+            config["skills"]["config"][0]["path"],
+            "C:/skills/foreign/SKILL.md",
+        )
+
     def test_runtime_discovery_starts_no_model_turn(self) -> None:
         launchers = base.CodexLaunchers(
             cli_prefix=("node", "codex.js"),
@@ -341,19 +385,24 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
         )
         original_app_server = module.base.AppServer
         original_installed = module.negative.installed_plugin_ids
+        original_session_builder = module.base.build_session_config
         original_poll = module.RUNTIME_PROBE_POLL_SECONDS
         original_stable = module.RUNTIME_PROBE_STABLE_POLLS
         FakeVetoAppServer.expected_home = ROOT.resolve()
         FakeVetoAppServer.start_turn_calls = 0
+        FakeVetoAppServer.last_session_config = {}
         module.base.AppServer = FakeVetoAppServer
         module.negative.installed_plugin_ids = lambda _launchers: []
+        module.base.build_session_config = (
+            module.startup_only_session_config_builder(original_session_builder)
+        )
         module.RUNTIME_PROBE_POLL_SECONDS = 0
         module.RUNTIME_PROBE_STABLE_POLLS = 1
 
         def builder(**_: Any) -> tuple[tuple[str, ...], list[str]]:
             return (
                 launchers.app_server_command,
-                ["mcp_servers={}"]
+                ["mcp_servers={}"],
             )
 
         try:
@@ -369,6 +418,10 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
             )
             self.assertEqual(inventory[0]["tool_names"], [])
             self.assertEqual(FakeVetoAppServer.start_turn_calls, 0)
+            self.assertNotIn(
+                "mcp_servers",
+                FakeVetoAppServer.last_session_config,
+            )
 
             FakeVetoAppServer.leak_tools = True
             with self.assertRaisesRegex(base.HarnessError, "left tools exposed"):
@@ -384,6 +437,7 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
         finally:
             module.base.AppServer = original_app_server
             module.negative.installed_plugin_ids = original_installed
+            module.base.build_session_config = original_session_builder
             module.RUNTIME_PROBE_POLL_SECONDS = original_poll
             module.RUNTIME_PROBE_STABLE_POLLS = original_stable
             FakeVetoAppServer.leak_tools = False
@@ -417,9 +471,10 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
             self.assertIsNotNone(path)
             assert path is not None
             payload = __import__("json").loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["schema_version"], 2)
-            self.assertEqual(payload["case_revision"], 5)
+            self.assertEqual(payload["schema_version"], 3)
+            self.assertEqual(payload["case_revision"], 6)
             self.assertEqual(payload["model_calls"], 0)
+            self.assertTrue(payload["thread_mcp_overrides_omitted"])
             self.assertTrue(payload["veto_validation_pass"])
             self.assertEqual(
                 payload["runtime_mcp_inventory"][0]["plugin_id"],
