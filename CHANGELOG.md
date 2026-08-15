@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Live behavior evaluation
+
+- Added a one-command authenticated Codex baseline-vs-core smoke harness.
+- Added structured `systematic-debugging` activation through Codex app-server input rather than prompt-name guessing.
+- Added reviewable traces, diffs, test evidence, token/tool/agent metrics, scorer output, and state restoration.
+- Separated two-command end-user installation from maintainer-only deterministic and live validation.
+
 ## 0.2.1 - 2026-08-15
 
 ### Cross-platform correctness

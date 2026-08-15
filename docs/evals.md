@@ -9,6 +9,8 @@ Static validation answers “are the files and contracts well formed?” Live ev
 - **T2, behavior:** realistic repository fixtures, repeated provider runs, deterministic artifact checks.
 - **T3, release canary:** representative core, Laravel, design, cloud, authoring, review, and handoff tasks on supported surfaces.
 
+The authenticated Codex live smoke in [`live-smoke.md`](live-smoke.md) is a one-repetition T1/T2 canary. It compares a plugin-disabled baseline with an explicitly selected `engineering-foundation-core:systematic-debugging` candidate and emits live JSONL rows. It is useful for proving that the complete local path works, but it is not a substitute for the repeated baseline/previous/candidate campaign required for release qualification.
+
 ## Run identity
 
 Every JSONL row records:
@@ -33,6 +35,8 @@ A normal release campaign compares:
 
 Use one harness revision, client/version, case revision, and repetition set across variants. Run at least three repetitions for ordinary nondeterministic cases and five for release-critical cases when budget permits.
 
+The one-command live smoke deliberately runs only baseline and candidate once. Its scorer result may be `PASS` with `COVERAGE_NOT_ASSESSED`; that wording is an evidence boundary, not coy marketing punctuation.
+
 ## Hard gates
 
 Every candidate run must pass:
@@ -50,6 +54,8 @@ Each live row points to an artifact relative to the JSONL file. A trace is also 
 
 Useful evidence includes task contracts, final responses, diffs, working-tree state, commands and exit codes, screenshots, rendered-state reports, redacted traces, token/tool/agent counts, duration, unrelated changes, and post-completion churn.
 
+The live smoke writes the app-server request/notification stream, final response, diff, before/after tests, stderr, normalized metrics, scorer output, and a campaign summary under `.eval-runs/codex-live-smoke/`. Review traces before sharing them; real project campaigns can contain sensitive repository content even when the harness never copies credentials.
+
 ## Commands
 
 Scorer self-test:
@@ -59,6 +65,12 @@ python scripts/score_eval_runs.py \
   evals/fixtures/sample-runs.jsonl \
   --allow-synthetic \
   --require-previous
+```
+
+One authenticated Codex smoke:
+
+```bash
+python scripts/run_codex_live_smoke.py --confirm-live
 ```
 
 Live campaign:
