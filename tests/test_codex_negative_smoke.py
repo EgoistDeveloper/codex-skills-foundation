@@ -4,6 +4,7 @@ import importlib.util
 import shutil
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -83,6 +84,10 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                 )
             )
             self.assertTrue(config["features"]["plugins"])
+            self.assertFalse(config["features"]["remote_plugin"])
+            self.assertFalse(config["features"]["recommended_plugins"])
+            self.assertFalse(config["features"]["plugin_sharing"])
+            self.assertFalse(config["features"]["code_mode"])
             self.assertEqual(disabled, [str(foreign)])
             disabled_paths = {
                 row["path"] for row in config["skills"]["config"]
@@ -93,6 +98,55 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             self.assertEqual(disabled_plugins, [foreign_plugin])
             self.assertTrue(config["plugins"][base.PLUGIN_ID]["enabled"])
             self.assertFalse(config["plugins"][foreign_plugin]["enabled"])
+
+
+    def test_startup_command_disables_remote_catalog_and_foreign_plugins(self) -> None:
+        launchers = base.CodexLaunchers(
+            cli_prefix=("node", "codex.js"),
+            app_server_command=("node", "codex.js", "app-server", "--listen", "stdio://"),
+            node_executable="node",
+            version_text="codex-cli 0.147.0",
+            version=(0, 147, 0),
+        )
+        foreign_plugin = "fable-advisor@foreign-marketplace"
+        command, overrides = module.build_isolated_app_server_command(
+            launchers=launchers,
+            installed_plugin_ids=[base.PLUGIN_ID, foreign_plugin],
+            plugins_enabled=True,
+            enabled_plugin_id=base.PLUGIN_ID,
+        )
+        self.assertEqual(command[:3], ("node", "codex.js", "app-server"))
+        self.assertEqual(command[-2:], ("--listen", "stdio://"))
+        self.assertIn("features.plugins=true", overrides)
+        self.assertIn("features.remote_plugin=false", overrides)
+        self.assertIn("features.apps=false", overrides)
+        plugin_override = next(value for value in overrides if value.startswith("plugins="))
+        plugin_table = tomllib.loads("_x_ = " + plugin_override.split("=", 1)[1])["_x_"]
+        self.assertTrue(plugin_table[base.PLUGIN_ID]["enabled"])
+        self.assertFalse(plugin_table[foreign_plugin]["enabled"])
+        for override in overrides:
+            self.assertIn(override, command)
+
+    def test_baseline_startup_command_disables_all_plugins(self) -> None:
+        launchers = base.CodexLaunchers(
+            cli_prefix=("node", "codex.js"),
+            app_server_command=("node", "codex.js", "app-server", "--listen", "stdio://"),
+            node_executable="node",
+            version_text="codex-cli 0.147.0",
+            version=(0, 147, 0),
+        )
+        foreign_plugin = "fable-advisor@foreign-marketplace"
+        _, overrides = module.build_isolated_app_server_command(
+            launchers=launchers,
+            installed_plugin_ids=[foreign_plugin],
+            plugins_enabled=False,
+            enabled_plugin_id=None,
+        )
+        self.assertIn("features.plugins=false", overrides)
+        self.assertIn("features.remote_plugin=false", overrides)
+        plugin_override = next(value for value in overrides if value.startswith("plugins="))
+        plugin_table = tomllib.loads("_x_ = " + plugin_override.split("=", 1)[1])["_x_"]
+        self.assertFalse(plugin_table[foreign_plugin]["enabled"])
 
     def test_skill_reference_detection_is_path_based(self) -> None:
         turn = base.LiveTurn(
@@ -220,6 +274,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                 node_executable=node,
                 disabled_skill_paths=[],
                 disabled_plugin_ids=[],
+                startup_config_overrides=["features.remote_plugin=false"],
                 exposed_core_skills=exposed,
             )
             self.assertTrue(evaluation.row["task_pass"])

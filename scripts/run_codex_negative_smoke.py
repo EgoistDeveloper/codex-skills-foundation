@@ -138,6 +138,62 @@ def installed_plugin_ids(launchers: base.CodexLaunchers) -> list[str]:
     )
 
 
+
+def toml_bool(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def plugin_table_override(plugin_states: dict[str, bool]) -> str:
+    entries = ", ".join(
+        f"{json.dumps(plugin_id, ensure_ascii=True)} = {{ enabled = {toml_bool(enabled)} }}"
+        for plugin_id, enabled in sorted(plugin_states.items())
+    )
+    return f"plugins={{ {entries} }}"
+
+
+def build_isolated_app_server_command(
+    *,
+    launchers: base.CodexLaunchers,
+    installed_plugin_ids: list[str],
+    plugins_enabled: bool,
+    enabled_plugin_id: str | None,
+) -> tuple[tuple[str, ...], list[str]]:
+    plugin_ids = sorted(set(installed_plugin_ids))
+    if plugins_enabled:
+        if enabled_plugin_id is None:
+            raise base.HarnessError("an enabled plugin id is required for candidate startup.")
+        if enabled_plugin_id not in plugin_ids:
+            raise base.HarnessError(
+                f"startup plugin inventory did not contain {enabled_plugin_id!r}."
+            )
+    elif enabled_plugin_id is not None:
+        raise base.HarnessError("baseline startup cannot select an enabled plugin id.")
+
+    plugin_states = {
+        plugin_id: plugins_enabled and plugin_id == enabled_plugin_id
+        for plugin_id in plugin_ids
+    }
+    overrides = [
+        f"features.plugins={toml_bool(plugins_enabled)}",
+        "features.remote_plugin=false",
+        "features.recommended_plugins=false",
+        "features.plugin_sharing=false",
+        "features.apps=false",
+        "features.code_mode=false",
+        "memories.generate_memories=false",
+        "memories.use_memories=false",
+        "memories.dedicated_tools=false",
+    ]
+    if plugin_states:
+        overrides.append(plugin_table_override(plugin_states))
+
+    command: list[str] = [*launchers.cli_prefix, "app-server"]
+    for override in overrides:
+        command.extend(("-c", override))
+    command.extend(("--listen", "stdio://"))
+    return tuple(command), overrides
+
+
 def completed_verify_commands(turn: base.LiveTurn) -> list[base.CommandEvidence]:
     expected = " ".join(VERIFY_COMMAND.lower().split())
     return [
@@ -214,9 +270,18 @@ def build_candidate_session_config(
     # plugin router naturally. Disable every other installed plugin at the
     # thread layer so foreign plugin-contributed MCP servers cannot start.
     config["features"]["plugins"] = True
+    config["features"]["remote_plugin"] = False
+    config["features"]["recommended_plugins"] = False
+    config["features"]["plugin_sharing"] = False
+    config["features"]["code_mode"] = False
     config["plugins"] = {
         plugin_id: {"enabled": plugin_id == base.PLUGIN_ID}
         for plugin_id in sorted(set(installed_plugin_ids) | {base.PLUGIN_ID})
+    }
+    config["memories"] = {
+        "generate_memories": False,
+        "use_memories": False,
+        "dedicated_tools": False,
     }
     return config, discovered_core, foreign_paths, foreign_plugin_ids
 
@@ -296,6 +361,7 @@ def evaluate_run(
     node_executable: str,
     disabled_skill_paths: list[str],
     disabled_plugin_ids: list[str],
+    startup_config_overrides: list[str],
     exposed_core_skills: dict[str, str],
 ) -> NegativeEvaluation:
     after_verification = run_verification(
@@ -430,6 +496,7 @@ def evaluate_run(
         "environment_pass": environment_pass,
         "environment_findings": environment_findings,
         "disabled_plugin_ids": sorted(set(disabled_plugin_ids)),
+        "startup_config_overrides": list(startup_config_overrides),
         "token_usage": token_usage,
         "tokens": token_usage["total_tokens"],
         "tool_calls": tool_calls,
@@ -486,10 +553,11 @@ def run_live_variant(
     model_provider: str | None,
     service_tier: str | None,
     session_config: dict[str, Any],
+    app_server_command: tuple[str, ...],
 ) -> tuple[base.LiveTurn, Path]:
     start = time.monotonic()
     with base.AppServer(
-        command=launchers.app_server_command,
+        command=app_server_command,
         node_executable=launchers.node_executable,
         cwd=workspace,
         trace_path=run_dir / "trace.jsonl",
@@ -566,6 +634,7 @@ def compact_evaluation(evaluation: NegativeEvaluation | None) -> dict[str, Any] 
         "changed_paths": artifact.get("changed_paths", []),
         "exact_change_pass": artifact.get("exact_change_pass"),
         "disabled_plugin_ids": artifact.get("disabled_plugin_ids", []),
+        "startup_config_overrides": artifact.get("startup_config_overrides", []),
         "observed_core_skill_reads": artifact.get("observed_core_skill_reads", []),
         "forbidden_skill_reads": artifact.get("forbidden_skill_reads", []),
         "activation_findings": artifact.get("activation_findings", []),
@@ -626,6 +695,12 @@ def print_failure_diagnostics(path: Path, payload: dict[str, Any]) -> None:
         findings = candidate.get("environment_findings", [])
         if findings:
             print("  candidate-environment: " + "; ".join(str(item) for item in findings))
+        disabled_plugins = candidate.get("disabled_plugin_ids", [])
+        if disabled_plugins:
+            print("  disabled-plugins: " + ", ".join(str(item) for item in disabled_plugins))
+        startup_overrides = candidate.get("startup_config_overrides", [])
+        if startup_overrides:
+            print(f"  startup-overrides: {len(startup_overrides)}")
     print(f"  file   : {path}")
 
 
@@ -751,9 +826,19 @@ def main() -> int:
                 codex_home = preflight.initialize()
             guard.snapshot_config(codex_home)
             guard.prepare_baseline()
+            baseline_plugin_ids = installed_plugin_ids(launchers)
+            (
+                baseline_app_server_command,
+                baseline_startup_overrides,
+            ) = build_isolated_app_server_command(
+                launchers=launchers,
+                installed_plugin_ids=baseline_plugin_ids,
+                plugins_enabled=False,
+                enabled_plugin_id=None,
+            )
 
             with base.AppServer(
-                command=launchers.app_server_command,
+                command=baseline_app_server_command,
                 node_executable=launchers.node_executable,
                 cwd=baseline_workspace,
                 trace_path=preflight_dir / "baseline-skills-trace.jsonl",
@@ -770,6 +855,15 @@ def main() -> int:
                 disabled_skill_paths=baseline_disabled_skills,
                 mcp_server_names=mcp_names,
             )
+            baseline_config["features"]["remote_plugin"] = False
+            baseline_config["features"]["recommended_plugins"] = False
+            baseline_config["features"]["plugin_sharing"] = False
+            baseline_config["features"]["code_mode"] = False
+            baseline_config["memories"] = {
+                "generate_memories": False,
+                "use_memories": False,
+                "dedicated_tools": False,
+            }
 
             print("[1/2] Running isolated plugin-disabled tiny-edit baseline...")
             baseline_turn, baseline_home = run_live_variant(
@@ -783,6 +877,7 @@ def main() -> int:
                 model_provider=None,
                 service_tier=None,
                 session_config=baseline_config,
+                app_server_command=baseline_app_server_command,
             )
             if base.normalized_path(baseline_home) != base.normalized_path(codex_home):
                 raise base.HarnessError("preflight and baseline used different Codex home directories.")
@@ -799,14 +894,25 @@ def main() -> int:
                 client_version=client_version,
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=baseline_disabled_skills,
-                disabled_plugin_ids=[],
+                disabled_plugin_ids=baseline_plugin_ids,
+                startup_config_overrides=baseline_startup_overrides,
                 exposed_core_skills={},
             )
 
             print("[2/2] Installing core and running unprompted tiny-edit candidate...")
             installed_root = guard.install_candidate()
+            candidate_plugin_ids = installed_plugin_ids(launchers)
+            (
+                candidate_app_server_command,
+                candidate_startup_overrides,
+            ) = build_isolated_app_server_command(
+                launchers=launchers,
+                installed_plugin_ids=candidate_plugin_ids,
+                plugins_enabled=True,
+                enabled_plugin_id=base.PLUGIN_ID,
+            )
             with base.AppServer(
-                command=launchers.app_server_command,
+                command=candidate_app_server_command,
                 node_executable=launchers.node_executable,
                 cwd=candidate_workspace,
                 trace_path=preflight_dir / "candidate-skills-trace.jsonl",
@@ -816,7 +922,6 @@ def main() -> int:
                 candidate_skills = candidate_preflight.skills_list(candidate_workspace)
             if base.normalized_path(candidate_preflight_home) != base.normalized_path(codex_home):
                 raise base.HarnessError("candidate preflight used a different Codex home directory.")
-            candidate_plugin_ids = installed_plugin_ids(launchers)
             (
                 candidate_config,
                 exposed_core,
@@ -839,6 +944,7 @@ def main() -> int:
                 model_provider=baseline_turn.model_provider,
                 service_tier=baseline_turn.service_tier,
                 session_config=candidate_config,
+                app_server_command=candidate_app_server_command,
             )
             if base.normalized_path(candidate_home) != base.normalized_path(codex_home):
                 raise base.HarnessError("baseline and candidate used different Codex home directories.")
@@ -862,6 +968,7 @@ def main() -> int:
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=candidate_disabled_skills,
                 disabled_plugin_ids=candidate_disabled_plugins,
+                startup_config_overrides=candidate_startup_overrides,
                 exposed_core_skills=exposed_core,
             )
 
