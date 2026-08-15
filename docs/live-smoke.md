@@ -15,12 +15,13 @@ Then the user starts a new Codex thread. They do not run Python tests, JSON-RPC 
 
 ## Maintainer smoke
 
-The live smoke answers a narrower question: on one authenticated Codex CLI run, does an explicitly selected core debugging skill complete a controlled task safely and with reviewable evidence, compared with a plugin-disabled baseline?
+The live smoke answers a narrower question: on one authenticated Codex CLI run, does one explicitly selected core debugging skill complete a controlled task safely and with reviewable evidence, compared with an isolated baseline?
 
 Requirements:
 
 - Python 3.11 or newer;
 - Git;
+- Node.js;
 - Codex CLI 0.147.0 or newer;
 - an active `codex login` session;
 - no concurrent Codex process changing plugin configuration during the smoke.
@@ -31,24 +32,37 @@ Run from a clean repository root:
 python scripts/run_codex_live_smoke.py --confirm-live
 ```
 
-Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository.
+Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository. The command deliberately requires `--confirm-live` because it runs two real model turns and consumes plan usage.
 
-The command deliberately requires `--confirm-live` because it runs two real model turns and consumes plan usage.
+## Validity controls
+
+The harness treats environment isolation as a hard precondition, not a decorative checkbox:
+
+- the fixture uses Node.js, which is already required by the npm Codex launcher;
+- the test runner prints explicit started, pass, and fail markers;
+- a shell command returning zero after a failed test cannot become false positive evidence;
+- every discovered user skill path is disabled through per-thread session config;
+- plugin, app, memory, and JavaScript REPL feature surfaces are disabled for both variants;
+- configured MCP servers are disabled for both variants;
+- the candidate receives only one structured explicit skill input;
+- any ready MCP server, foreign skill-file read, or Codex-memory read marks the campaign `INVALID` and skips scoring;
+- `summary.json` is written for PASS, FAIL, INVALID, and harness-error outcomes.
+
+The baseline and candidate still use the same authenticated Codex home. Authentication files are never copied, parsed, printed, or moved.
 
 ## What the harness does
 
-1. Creates one deterministic failing Python fixture and clones it twice.
+1. Creates one deterministic failing Node.js fixture and clones it twice.
 2. Records the current Codex marketplace, core-plugin, and `config.toml` state.
-3. Runs a plugin-disabled baseline.
-4. Installs the local core package temporarily.
-5. Starts a new Codex app-server session and selects `engineering-foundation-core:systematic-debugging` through the structured skill input.
-6. Runs the same prompt, model, provider, service tier, reasoning effort, and fixture in the candidate variant.
-7. Checks the final tests, allowed diff, unchanged Git commit, activation, fresh command evidence, tool calls, agent count, duration, and token usage.
-8. Writes traces and artifacts below `.eval-runs/codex-live-smoke/`.
-9. Runs `scripts/score_eval_runs.py` on the baseline and candidate rows.
-10. Restores the original plugin, marketplace, and `config.toml` state even when the run fails.
-
-The harness never copies authentication files or prints credentials. The candidate `subject_commit` is the exact checked-out repository revision used to materialize the local plugin, rather than an older release tag that merely happens to advertise the same package version.
+3. Discovers ambient skills and MCP names for explicit per-thread disabling.
+4. Runs an isolated baseline with plugins, apps, memories, configured MCP servers, and discovered user skills disabled.
+5. Installs the local core package temporarily.
+6. Resolves `engineering-foundation-core:systematic-debugging`, then runs the candidate with the same isolation config plus that one structured skill input.
+7. Uses the same prompt, model, provider, service tier, reasoning effort, and fixture.
+8. Checks marker-backed reproduction, marker-backed post-edit verification, allowed diff, unchanged Git commit, activation, ambient-capability isolation, tool calls, agent count, duration, and detailed token usage.
+9. Writes traces and artifacts below `.eval-runs/codex-live-smoke/`.
+10. Runs `scripts/score_eval_runs.py` only when the environment-isolation gate passes.
+11. Restores the original plugin, marketplace, and `config.toml` state even when the run fails.
 
 ## Artifacts
 
@@ -66,7 +80,7 @@ Each campaign contains:
 │   └── trace.jsonl
 ├── candidate/
 │   └── ...
-├── preflight/trace.jsonl
+├── preflight/
 ├── runs.jsonl
 ├── score.json
 ├── summary.json
@@ -74,31 +88,14 @@ Each campaign contains:
 └── workspaces/
 ```
 
-`trace.jsonl` records the app-server messages sent and received. It should be reviewed before sharing because model traces and repository content can contain sensitive information in real campaigns. The bundled fixture itself contains no secrets.
+`trace.jsonl` records the app-server messages sent and received. Review it before sharing because model traces and repository content can contain sensitive information in real campaigns. The bundled fixture itself contains no secrets.
 
-## Pass meaning
+## Result meanings
 
-A passing smoke means one candidate repetition cleared the task, safety, explicit activation, and evidence gates without regressing against its baseline repetition.
+- `PASS`: one isolated candidate repetition cleared scorer gates.
+- `FAIL`: the environment was valid, but behavior or regression gates failed.
+- `INVALID`: ambient skills, MCPs, memory, or other capabilities contaminated the comparison; the scorer was not run.
+- `HARNESS_ERROR`: the harness or runtime failed before a trustworthy comparison completed.
 
-It does **not** mean:
-
-- every Codex model will improve;
-- implicit activation is qualified;
-- Claude, Codex Cloud, ChatGPT Desktop, or other clients are qualified;
-- the complete release matrix passed;
-- a single nondeterministic run is statistically persuasive.
-
-Full qualification still requires repeated baseline, previous-release, and candidate runs across the matrix in [`qualification.md`](qualification.md). One green smoke is useful evidence, not a coronation ceremony.
-
-## Safety refusals
-
-The harness stops instead of guessing when:
-
-- the configured marketplace name points to another repository;
-- the existing core plugin is disabled;
-- the existing core plugin version differs from the local candidate;
-- Codex is not authenticated;
-- Codex is older than the validated minimum;
-- the fixture is not failing before the model runs;
-- baseline and candidate use different model settings;
-- the original plugin/config state cannot be restored.
+A passing smoke does **not** mean every model or client is qualified. Full qualification still requires repeated baseline, previous-release, and candidate runs across the matrix in [`qualification.md`](qualification.md). One green smoke is evidence, not a coronation ceremony.
+r

@@ -8,6 +8,10 @@
 - Added structured `systematic-debugging` activation through Codex app-server input rather than prompt-name guessing.
 - Added reviewable traces, diffs, test evidence, token/tool/agent metrics, scorer output, and state restoration.
 - Separated two-command end-user installation from maintainer-only deterministic and live validation.
+- Replaced the Python fixture with a marker-backed Node.js fixture so the agent and harness share an available runtime.
+- Added per-thread isolation for plugins, apps, memories, MCP servers, and ambient user skills.
+- Rejected shell-chain false positives and write `summary.json` for PASS, FAIL, INVALID, and harness errors.
+- Added cached, uncached, output, reasoning, duration, and environment-validity metrics.
 
 ## 0.2.1 - 2026-08-15
 

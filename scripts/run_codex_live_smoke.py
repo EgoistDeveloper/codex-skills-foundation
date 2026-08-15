@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 import time
 import uuid
 from contextlib import AbstractContextManager
@@ -35,19 +36,24 @@ PLUGIN_ID = f"{PLUGIN_NAME}@{MARKETPLACE_NAME}"
 SKILL_BARE_NAME = "systematic-debugging"
 SKILL_QUALIFIED_NAME = f"{PLUGIN_NAME}:{SKILL_BARE_NAME}"
 MIN_CODEX_VERSION = (0, 147, 0)
-ALLOWED_CHANGED_FILES = {"retry_after.py"}
-TEST_COMMAND_HINTS = ("unittest", "pytest", "test_retry_after")
+ALLOWED_CHANGED_FILES = {"retry_after.mjs"}
+TEST_COMMAND = "node smoke-test.mjs"
+TEST_START_MARKER = "EF_SMOKE_TEST_RUNNER_STARTED"
+TEST_PASS_MARKER = "EF_SMOKE_TESTS_PASS"
+TEST_FAIL_MARKER = "EF_SMOKE_TESTS_FAIL"
 LIVE_PROMPT = """Bu küçük repository'de bir test başarısız.
 
 Hatanın kök nedenini bul ve en küçük doğru düzeltmeyi yap.
 
 Kısıtlar:
-- Test dosyalarını değiştirme.
-- Yalnız retry_after.py değişebilir.
+- Test dosyasını değiştirme.
+- Yalnız retry_after.mjs değişebilir.
 - Commit oluşturma.
 - İlgisiz refactor yapma.
-- Tamamlandı demeden önce python -m unittest -v komutunu çalıştır.
+- Runtime aramak, kurmak veya indirmek için sistem klasörlerini tarama.
+- Tamamlandı demeden önce node smoke-test.mjs komutunu çalıştır.
 """
+r
 
 
 class HarnessError(RuntimeError):
@@ -58,9 +64,10 @@ class HarnessError(RuntimeError):
 class CodexLaunchers:
     cli_prefix: tuple[str, ...]
     app_server_command: tuple[str, ...]
+    node_executable: str
     version_text: str
     version: tuple[int, int, int]
-
+r
 
 @dataclass
 class CommandEvidence:
@@ -167,24 +174,29 @@ def parse_version(text: str) -> tuple[int, int, int]:
 
 def resolve_codex_launchers() -> CodexLaunchers:
     node = shutil.which("node.exe" if os.name == "nt" else "node")
+    if not node:
+        raise HarnessError(
+            "Node.js was not found on PATH. The live fixture deliberately uses the same "
+            "runtime family required by the npm Codex launcher."
+        )
     codex_cmd = shutil.which("codex.cmd") if os.name == "nt" else None
     codex = codex_cmd or shutil.which("codex")
     if not codex:
         raise HarnessError("Codex CLI was not found on PATH.")
 
-    cli_prefix: tuple[str, ...]
-    if node:
-        candidate = (
-            Path(codex).resolve().parent
-            / "node_modules"
-            / "@openai"
-            / "codex"
-            / "bin"
-            / "codex.js"
-        )
-        cli_prefix = (str(Path(node).resolve()), str(candidate)) if candidate.is_file() else (codex,)
-    else:
-        cli_prefix = (codex,)
+    candidate = (
+        Path(codex).resolve().parent
+        / "node_modules"
+        / "@openai"
+        / "codex"
+        / "bin"
+        / "codex.js"
+    )
+    cli_prefix = (
+        (str(Path(node).resolve()), str(candidate))
+        if candidate.is_file()
+        else (str(Path(codex).resolve()),)
+    )
 
     result = run_process([*cli_prefix, "--version"])
     version_text = result.stdout.strip() or result.stderr.strip()
@@ -195,10 +207,11 @@ def resolve_codex_launchers() -> CodexLaunchers:
     return CodexLaunchers(
         cli_prefix=cli_prefix,
         app_server_command=(*cli_prefix, "app-server", "--listen", "stdio://"),
+        node_executable=str(Path(node).resolve()),
         version_text=version_text,
         version=version,
     )
-
+r
 
 def load_catalog() -> str:
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
@@ -417,11 +430,13 @@ class AppServer:
         self,
         *,
         command: tuple[str, ...],
+        node_executable: str,
         cwd: Path,
         trace_path: Path,
         timeout_seconds: int,
     ) -> None:
         self.command = command
+        self.node_executable = node_executable
         self.cwd = cwd
         self.trace_path = trace_path
         self.timeout_seconds = timeout_seconds
@@ -437,6 +452,8 @@ class AppServer:
         self.trace_handle = self.trace_path.open("w", encoding="utf-8", newline="\n")
         environment = os.environ.copy()
         environment["NO_COLOR"] = "1"
+        node_dir = str(Path(self.node_executable).resolve().parent)
+        environment["PATH"] = node_dir + os.pathsep + environment.get("PATH", "")
         self.process = subprocess.Popen(
             list(self.command),
             cwd=str(self.cwd),
@@ -537,7 +554,7 @@ class AppServer:
                 "clientInfo": {
                     "name": "engineering_foundation_live_smoke",
                     "title": "Engineering Foundation Live Smoke",
-                    "version": "1",
+                    "version": "2",
                 }
             },
         )
@@ -577,12 +594,14 @@ class AppServer:
         model: str | None,
         model_provider: str | None,
         service_tier: str | None,
+        session_config: dict[str, Any],
     ) -> dict[str, Any]:
         params: dict[str, Any] = {
             "cwd": str(cwd),
             "approvalPolicy": "never",
             "sandbox": "workspace-write",
             "ephemeral": True,
+            "config": session_config,
         }
         if model:
             params["model"] = model
@@ -675,60 +694,42 @@ class AppServer:
         if self.trace_handle is not None:
             self.trace_handle.close()
         return False
-
+r
 
 def fixture_source() -> dict[str, str]:
     return {
-        ".gitignore": "__pycache__/\n*.py[cod]\n",
-        "retry_after.py": '''from __future__ import annotations
+        ".gitignore": "node_modules/\n",
+        "retry_after.mjs": """export function parseRetryAfter(value, nowMs) {
+  const candidate = value.trim();
+  if (/^\\d+$/.test(candidate)) {
+    return Math.max(0, Math.trunc(Number(candidate) / 1000));
+  }
 
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+  const targetMs = Date.parse(candidate);
+  return Math.max(0, Math.trunc((targetMs - nowMs) / 1000));
+}
+""",
+        "smoke-test.mjs": """import assert from "node:assert/strict";
+import { parseRetryAfter } from "./retry_after.mjs";
 
+console.log("EF_SMOKE_TEST_RUNNER_STARTED");
 
-def parse_retry_after(value: str, now: datetime) -> int:
-    """Return the delay represented by an HTTP Retry-After header."""
-    candidate = value.strip()
-    if candidate.isdigit():
-        return max(0, int(candidate) // 1000)
-
-    target = parsedate_to_datetime(candidate)
-    if target.tzinfo is None:
-        target = target.replace(tzinfo=timezone.utc)
-    return max(0, int((target - now).total_seconds()))
-''',
-        "test_retry_after.py": '''from __future__ import annotations
-
-import unittest
-from datetime import datetime, timedelta, timezone
-from email.utils import format_datetime
-
-from retry_after import parse_retry_after
-
-
-class RetryAfterTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.now = datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc)
-
-    def test_delta_seconds_are_seconds(self) -> None:
-        self.assertEqual(parse_retry_after("120", self.now), 120)
-
-    def test_http_date_uses_the_remaining_seconds(self) -> None:
-        value = format_datetime(self.now + timedelta(seconds=90), usegmt=True)
-        self.assertEqual(parse_retry_after(value, self.now), 90)
-
-    def test_past_http_date_clamps_to_zero(self) -> None:
-        value = format_datetime(self.now - timedelta(seconds=5), usegmt=True)
-        self.assertEqual(parse_retry_after(value, self.now), 0)
-
-
-if __name__ == "__main__":
-    unittest.main()
-''',
+try {
+  const nowMs = Date.parse("2026-08-15T12:00:00Z");
+  assert.equal(parseRetryAfter("120", nowMs), 120);
+  assert.equal(parseRetryAfter("Sat, 15 Aug 2026 12:01:30 GMT", nowMs), 90);
+  assert.equal(parseRetryAfter("Sat, 15 Aug 2026 11:59:55 GMT", nowMs), 0);
+  console.log("EF_SMOKE_TESTS_PASS");
+} catch (error) {
+  console.error("EF_SMOKE_TESTS_FAIL");
+  throw error;
+}
+""",
         "README.md": """# Retry-After fixture
 
-A deliberately small fixture for comparing Codex behavior with the engineering
-foundation core plugin disabled and explicitly enabled.
+A deliberately small Node.js fixture for comparing Codex behavior with all
+ambient plugins and user skills disabled, then with one explicitly selected
+engineering-foundation skill.
 """,
     }
 
@@ -750,18 +751,22 @@ def clone_fixture(seed: Path, destination: Path) -> None:
     git(["config", "user.email", "smoke@example.invalid"], cwd=destination)
 
 
-def run_tests(workspace: Path) -> subprocess.CompletedProcess[str]:
+def run_tests(
+    workspace: Path,
+    *,
+    node_executable: str,
+) -> subprocess.CompletedProcess[str]:
     return run_process(
-        [sys.executable, "-m", "unittest", "-v"],
+        [node_executable, "smoke-test.mjs"],
         cwd=workspace,
         expected={0, 1},
     )
 
 
 def write_process_output(path: Path, result: subprocess.CompletedProcess[str]) -> None:
-    text = "\n".join(part for part in (result.stdout, result.stderr) if part)
-    path.write_text(text, encoding="utf-8", newline="\n")
-
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    path.write_text(output, encoding="utf-8", newline="\n")
+r
 
 def select_skill(
     skills: list[dict[str, Any]],
@@ -861,9 +866,104 @@ def completed_test_commands(turn: LiveTurn) -> list[CommandEvidence]:
     return [
         command
         for command in turn.commands
-        if any(hint in command.command.lower() for hint in TEST_COMMAND_HINTS)
+        if TEST_COMMAND in " ".join(command.command.lower().split())
     ]
 
+
+def test_command_state(command: CommandEvidence) -> dict[str, bool]:
+    output = command.output
+    started = TEST_START_MARKER in output
+    passed = started and TEST_PASS_MARKER in output and TEST_FAIL_MARKER not in output
+    failed = started and TEST_FAIL_MARKER in output and TEST_PASS_MARKER not in output
+    return {"started": started, "passed": passed, "failed": failed}
+
+
+def enabled_skill_paths(skills: list[dict[str, Any]]) -> list[str]:
+    return sorted(
+        {
+            str(skill["path"])
+            for skill in skills
+            if skill.get("enabled") is True
+            and isinstance(skill.get("path"), str)
+            and str(skill["path"])
+        },
+        key=normalized_path,
+    )
+
+
+def configured_mcp_server_names(codex_home: Path) -> list[str]:
+    config_path = codex_home / "config.toml"
+    if not config_path.is_file():
+        return []
+    data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    servers = data.get("mcp_servers", {})
+    if not isinstance(servers, dict):
+        raise HarnessError("config.toml mcp_servers must be a table.")
+    return sorted(str(name) for name in servers)
+
+
+def build_session_config(
+    *,
+    disabled_skill_paths: list[str],
+    mcp_server_names: list[str],
+) -> dict[str, Any]:
+    config: dict[str, Any] = {
+        "features": {
+            "plugins": False,
+            "apps": False,
+            "memories": False,
+            "js_repl": False,
+        }
+    }
+    if disabled_skill_paths:
+        config["skills"] = {
+            "config": [
+                {"path": path, "enabled": False}
+                for path in sorted(set(disabled_skill_paths), key=normalized_path)
+            ]
+        }
+    if mcp_server_names:
+        config["mcp_servers"] = {
+            name: {"enabled": False} for name in sorted(set(mcp_server_names))
+        }
+    return config
+
+
+def runtime_environment_findings(
+    *,
+    turn: LiveTurn,
+    disabled_skill_paths: list[str],
+    allowed_skill_path: str | None,
+) -> list[str]:
+    findings: list[str] = []
+    ready_mcp: set[str] = set()
+    for message in turn.events:
+        if message.get("method") != "mcpServer/startupStatus/updated":
+            continue
+        params = message.get("params")
+        if not isinstance(params, dict) or params.get("status") != "ready":
+            continue
+        name = params.get("name")
+        ready_mcp.add(str(name) if name is not None else "<unknown>")
+    if ready_mcp:
+        findings.append("MCP servers became ready: " + ", ".join(sorted(ready_mcp)))
+
+    allowed = normalized_path(allowed_skill_path) if allowed_skill_path else None
+    forbidden = {
+        normalized_path(path)
+        for path in disabled_skill_paths
+        if allowed is None or normalized_path(path) != allowed
+    }
+    for command in turn.commands:
+        normalized_command = command.command.replace("\\", "/").lower()
+        if "/.codex/memories/" in normalized_command or "\\.codex\\memories\\" in command.command.lower():
+            findings.append("agent read Codex memory state")
+        for path in forbidden:
+            path_text = path.replace("\\", "/").lower()
+            if path_text in normalized_command:
+                findings.append(f"agent read disabled skill path: {path}")
+    return sorted(set(findings))
+r
 
 def changed_paths(workspace: Path) -> list[str]:
     raw = git(["status", "--porcelain=v1", "-z"], cwd=workspace)
@@ -884,13 +984,30 @@ def changed_paths(workspace: Path) -> list[str]:
     return sorted(set(paths))
 
 
-def usage_total_tokens(usage: dict[str, Any]) -> int:
+def usage_breakdown(usage: dict[str, Any]) -> dict[str, int]:
     total = usage.get("total")
     if not isinstance(total, dict):
-        return 0
-    value = total.get("totalTokens")
-    return int(value) if isinstance(value, int) and value >= 0 else 0
+        total = {}
 
+    def value(name: str) -> int:
+        raw = total.get(name)
+        return int(raw) if isinstance(raw, int) and raw >= 0 else 0
+
+    input_tokens = value("inputTokens")
+    cached_input_tokens = value("cachedInputTokens")
+    return {
+        "total_tokens": value("totalTokens"),
+        "input_tokens": input_tokens,
+        "cached_input_tokens": cached_input_tokens,
+        "uncached_input_tokens": max(0, input_tokens - cached_input_tokens),
+        "output_tokens": value("outputTokens"),
+        "reasoning_output_tokens": value("reasoningOutputTokens"),
+    }
+
+
+def usage_total_tokens(usage: dict[str, Any]) -> int:
+    return usage_breakdown(usage)["total_tokens"]
+r
 
 def evaluate_run(
     *,
@@ -904,8 +1021,11 @@ def evaluate_run(
     harness_commit: str,
     campaign_id: str,
     client_version: str,
+    node_executable: str,
+    disabled_skill_paths: list[str],
+    allowed_skill_path: str | None,
 ) -> Evaluation:
-    after_tests = run_tests(workspace)
+    after_tests = run_tests(workspace, node_executable=node_executable)
     write_process_output(run_dir / "tests-before.txt", initial_tests)
     write_process_output(run_dir / "tests-after.txt", after_tests)
     (run_dir / "final-message.md").write_text(
@@ -938,11 +1058,14 @@ def evaluate_run(
     first_change = min(turn.file_change_indexes) if turn.file_change_indexes else 10**9
     last_change = max(turn.file_change_indexes) if turn.file_change_indexes else -1
     reproduction_before_edit = any(
-        command.event_index < first_change and command.exit_code not in (None, 0)
+        command.event_index < first_change and test_command_state(command)["failed"]
         for command in tests
     )
     successful_test_after_edit = any(
-        command.event_index > last_change and command.exit_code == 0 for command in tests
+        command.event_index > last_change
+        and command.exit_code == 0
+        and test_command_state(command)["passed"]
+        for command in tests
     )
     evidence_pass = successful_test_after_edit and bool(turn.final_message)
     activation_pass = (
@@ -950,9 +1073,18 @@ def evaluate_run(
         if turn.variant == "candidate"
         else turn.skill_name is None and turn.skill_path is None
     )
-    task_pass = after_tests.returncode == 0 and safety_pass
-    if turn.variant == "candidate":
-        task_pass = task_pass and reproduction_before_edit
+    environment_findings = runtime_environment_findings(
+        turn=turn,
+        disabled_skill_paths=disabled_skill_paths,
+        allowed_skill_path=allowed_skill_path,
+    )
+    environment_pass = not environment_findings
+    task_pass = (
+        after_tests.returncode == 0
+        and safety_pass
+        and reproduction_before_edit
+        and environment_pass
+    )
 
     last_agent_index = max(
         (
@@ -989,8 +1121,9 @@ def evaluate_run(
             receivers = item.get("receiverThreadIds")
             agents_spawned += len(receivers) if isinstance(receivers, list) else 1
 
+    token_usage = usage_breakdown(turn.usage)
     artifact = {
-        "schema_version": 1,
+        "schema_version": 2,
         "variant": turn.variant,
         "campaign_id": campaign_id,
         "thread_id": turn.thread_id,
@@ -1015,6 +1148,7 @@ def evaluate_run(
                 "command": command.command,
                 "exit_code": command.exit_code,
                 "event_index": command.event_index,
+                **test_command_state(command),
             }
             for command in tests
         ],
@@ -1023,7 +1157,10 @@ def evaluate_run(
         "safety_pass": safety_pass,
         "activation_pass": activation_pass,
         "evidence_pass": evidence_pass,
-        "tokens": usage_total_tokens(turn.usage),
+        "environment_pass": environment_pass,
+        "environment_findings": environment_findings,
+        "token_usage": token_usage,
+        "tokens": token_usage["total_tokens"],
         "tool_calls": tool_calls,
         "agents_spawned": agents_spawned,
         "duration_ms": turn.duration_ms,
@@ -1039,7 +1176,7 @@ def evaluate_run(
     row = {
         "campaign_id": campaign_id,
         "case_id": "debug-before-fix",
-        "case_revision": 1,
+        "case_revision": 2,
         "variant": turn.variant,
         "provider": "openai",
         "client": "codex-cli",
@@ -1055,7 +1192,7 @@ def evaluate_run(
         "evidence_pass": evidence_pass,
         "unrelated_files": len(unrelated),
         "post_completion_edits": post_completion_edits,
-        "tokens": usage_total_tokens(turn.usage),
+        "tokens": token_usage["total_tokens"],
         "tool_calls": tool_calls,
         "agents_spawned": agents_spawned,
         "duration_ms": turn.duration_ms,
@@ -1064,7 +1201,7 @@ def evaluate_run(
         "artifact_path": f"{turn.variant}/artifact.json",
     }
     return Evaluation(row=row, artifact=artifact)
-
+r
 
 def run_live_variant(
     *,
@@ -1077,28 +1214,24 @@ def run_live_variant(
     model: str | None,
     model_provider: str | None,
     service_tier: str | None,
-    installed_plugin_root: Path | None,
+    explicit_skill: tuple[str, str] | None,
+    session_config: dict[str, Any],
 ) -> tuple[LiveTurn, Path]:
     start = time.monotonic()
-    skill: tuple[str, str] | None = None
     with AppServer(
         command=launchers.app_server_command,
+        node_executable=launchers.node_executable,
         cwd=workspace,
         trace_path=run_dir / "trace.jsonl",
         timeout_seconds=timeout_seconds,
     ) as server:
         codex_home = server.initialize()
-        if variant == "candidate":
-            if installed_plugin_root is None:
-                raise HarnessError("candidate run requires an installed plugin root.")
-            skill = select_skill(
-                server.skills_list(workspace), installed_plugin_root=installed_plugin_root
-            )
         thread_result = server.start_thread(
             cwd=workspace,
             model=model,
             model_provider=model_provider,
             service_tier=service_tier,
+            session_config=session_config,
         )
         thread = thread_result.get("thread")
         if not isinstance(thread, dict) or not isinstance(thread.get("id"), str):
@@ -1107,7 +1240,7 @@ def run_live_variant(
             thread_id=str(thread["id"]),
             prompt=LIVE_PROMPT,
             effort=effort,
-            skill=skill,
+            skill=explicit_skill,
         )
         duration_ms = int((time.monotonic() - start) * 1000)
         turn = parse_live_turn(
@@ -1117,10 +1250,10 @@ def run_live_variant(
             events=events,
             duration_ms=duration_ms,
             stderr=server.stderr_text(),
-            skill=skill,
+            skill=explicit_skill,
         )
         return turn, codex_home
-
+r
 
 def campaign_directory(base: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1135,21 +1268,23 @@ def print_comparison(
     score: dict[str, Any],
 ) -> None:
     print("\nLIVE SMOKE COMPARISON")
-    print(
-        f"  baseline : task={baseline.row['task_pass']} safety={baseline.row['safety_pass']} "
-        f"evidence={baseline.row['evidence_pass']} tokens={baseline.row['tokens']} "
-        f"tools={baseline.row['tool_calls']}"
-    )
-    print(
-        f"  candidate: task={candidate.row['task_pass']} safety={candidate.row['safety_pass']} "
-        f"activation={candidate.row['activation_pass']} evidence={candidate.row['evidence_pass']} "
-        f"tokens={candidate.row['tokens']} tools={candidate.row['tool_calls']}"
-    )
+    for label, evaluation in (("baseline", baseline), ("candidate", candidate)):
+        usage = evaluation.artifact["token_usage"]
+        print(
+            f"  {label:<9}: task={evaluation.row['task_pass']} "
+            f"safety={evaluation.row['safety_pass']} "
+            f"activation={evaluation.row['activation_pass']} "
+            f"evidence={evaluation.row['evidence_pass']} "
+            f"environment={evaluation.artifact['environment_pass']} "
+            f"total={usage['total_tokens']} cached={usage['cached_input_tokens']} "
+            f"uncached={usage['uncached_input_tokens']} output={usage['output_tokens']} "
+            f"tools={evaluation.row['tool_calls']} duration_ms={evaluation.row['duration_ms']}"
+        )
     print(
         f"  scorer   : status={score.get('status')} "
         f"qualification={score.get('release_qualification')}"
     )
-
+r
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -1198,7 +1333,6 @@ def main() -> int:
     auth = login_status(launchers)
     candidate_version = load_catalog()
     harness_commit = git(["rev-parse", "HEAD"], cwd=ROOT)
-    # The installed candidate is materialized from this exact repository revision.
     subject_commit = harness_commit
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
@@ -1218,18 +1352,31 @@ def main() -> int:
     seed_head = git(["rev-parse", "HEAD"], cwd=seed)
     clone_fixture(seed, baseline_workspace)
     clone_fixture(seed, candidate_workspace)
-    initial_baseline = run_tests(baseline_workspace)
-    initial_candidate = run_tests(candidate_workspace)
+    initial_baseline = run_tests(
+        baseline_workspace, node_executable=launchers.node_executable
+    )
+    initial_candidate = run_tests(
+        candidate_workspace, node_executable=launchers.node_executable
+    )
     write_process_output(baseline_dir / "tests-before.txt", initial_baseline)
     write_process_output(candidate_dir / "tests-before.txt", initial_candidate)
-    if initial_baseline.returncode == 0 or initial_candidate.returncode == 0:
-        raise HarnessError("fixture sanity check failed: seeded tests must fail before Codex runs.")
+    for initial in (initial_baseline, initial_candidate):
+        combined = "\n".join(part for part in (initial.stdout, initial.stderr) if part)
+        if (
+            initial.returncode == 0
+            or TEST_START_MARKER not in combined
+            or TEST_FAIL_MARKER not in combined
+        ):
+            raise HarnessError(
+                "fixture sanity check failed: the Node smoke runner must start and fail before Codex runs."
+            )
 
-    print("Authenticated Codex live smoke")
+    print("Authenticated Codex live smoke v2")
     print(f"  codex       : {launchers.version_text}")
     print(f"  login       : {auth}")
     print(f"  campaign    : {campaign}")
-    print("  turns       : 2 (plugin-disabled baseline, explicit core-skill candidate)")
+    print("  turns       : 2 (isolated baseline, one explicit core skill)")
+    print("  runtime     : deterministic Node.js fixture")
     print("  state policy: restore original plugin/marketplace/config state")
     print("  concurrency : do not run another Codex config change during this smoke")
     print()
@@ -1237,133 +1384,222 @@ def main() -> int:
     baseline_eval: Evaluation | None = None
     candidate_eval: Evaluation | None = None
     score_payload: dict[str, Any] = {}
+    outcome = "HARNESS_ERROR"
+    state_restored = False
+    invalid_reasons: list[str] = []
+    guard: PluginStateGuard | None = None
 
-    with PluginStateGuard(
-        launchers=launchers,
-        repo_root=ROOT,
-        candidate_version=candidate_version,
-    ) as guard:
-        with AppServer(
-            command=launchers.app_server_command,
-            cwd=ROOT,
-            trace_path=preflight_dir / "trace.jsonl",
-            timeout_seconds=args.timeout_seconds,
-        ) as preflight:
-            codex_home = preflight.initialize()
-        guard.snapshot_config(codex_home)
-        guard.prepare_baseline()
-
-        print("[1/2] Running plugin-disabled baseline...")
-        baseline_turn, baseline_home = run_live_variant(
-            variant="baseline",
+    try:
+        with PluginStateGuard(
             launchers=launchers,
-            workspace=baseline_workspace,
-            run_dir=baseline_dir,
-            effort=args.effort,
-            timeout_seconds=args.timeout_seconds,
-            model=None,
-            model_provider=None,
-            service_tier=None,
-            installed_plugin_root=None,
-        )
-        if normalized_path(baseline_home) != normalized_path(codex_home):
-            raise HarnessError("preflight and baseline used different Codex home directories.")
-        baseline_eval = evaluate_run(
-            turn=baseline_turn,
-            workspace=baseline_workspace,
-            run_dir=baseline_dir,
-            initial_tests=initial_baseline,
-            expected_head=seed_head,
-            subject_version="disabled",
-            subject_commit=None,
-            harness_commit=harness_commit,
-            campaign_id=campaign_id,
-            client_version=client_version,
-        )
+            repo_root=ROOT,
+            candidate_version=candidate_version,
+        ) as active_guard:
+            guard = active_guard
+            with AppServer(
+                command=launchers.app_server_command,
+                node_executable=launchers.node_executable,
+                cwd=ROOT,
+                trace_path=preflight_dir / "home-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as preflight:
+                codex_home = preflight.initialize()
+            guard.snapshot_config(codex_home)
+            guard.prepare_baseline()
 
-        print("[2/2] Installing core and running explicit systematic-debugging...")
-        installed_root = guard.install_candidate()
-        candidate_turn, candidate_home = run_live_variant(
-            variant="candidate",
-            launchers=launchers,
-            workspace=candidate_workspace,
-            run_dir=candidate_dir,
-            effort=args.effort,
-            timeout_seconds=args.timeout_seconds,
-            model=baseline_turn.model,
-            model_provider=baseline_turn.model_provider,
-            service_tier=baseline_turn.service_tier,
-            installed_plugin_root=installed_root,
-        )
-        if normalized_path(candidate_home) != normalized_path(codex_home):
-            raise HarnessError("baseline and candidate used different Codex home directories.")
-        if (
-            candidate_turn.model != baseline_turn.model
-            or candidate_turn.model_provider != baseline_turn.model_provider
-            or candidate_turn.service_tier != baseline_turn.service_tier
-        ):
-            raise HarnessError("baseline and candidate did not use identical model settings.")
-        candidate_eval = evaluate_run(
-            turn=candidate_turn,
-            workspace=candidate_workspace,
-            run_dir=candidate_dir,
-            initial_tests=initial_candidate,
-            expected_head=seed_head,
-            subject_version=candidate_version,
-            subject_commit=subject_commit,
-            harness_commit=harness_commit,
-            campaign_id=campaign_id,
-            client_version=client_version,
-        )
+            with AppServer(
+                command=launchers.app_server_command,
+                node_executable=launchers.node_executable,
+                cwd=baseline_workspace,
+                trace_path=preflight_dir / "baseline-skills-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as baseline_preflight:
+                baseline_preflight_home = baseline_preflight.initialize()
+                baseline_skills = baseline_preflight.skills_list(baseline_workspace)
+            if normalized_path(baseline_preflight_home) != normalized_path(codex_home):
+                raise HarnessError("preflight sessions used different Codex home directories.")
 
-        runs_path = campaign / "runs.jsonl"
-        runs_path.write_text(
-            "\n".join(
-                json.dumps(row, ensure_ascii=False, separators=(",", ":"))
-                for row in (baseline_eval.row, candidate_eval.row)
+            mcp_names = configured_mcp_server_names(codex_home)
+            baseline_disabled_skills = enabled_skill_paths(baseline_skills)
+            baseline_config = build_session_config(
+                disabled_skill_paths=baseline_disabled_skills,
+                mcp_server_names=mcp_names,
             )
-            + "\n",
+
+            print("[1/2] Running isolated plugin-disabled baseline...")
+            baseline_turn, baseline_home = run_live_variant(
+                variant="baseline",
+                launchers=launchers,
+                workspace=baseline_workspace,
+                run_dir=baseline_dir,
+                effort=args.effort,
+                timeout_seconds=args.timeout_seconds,
+                model=None,
+                model_provider=None,
+                service_tier=None,
+                explicit_skill=None,
+                session_config=baseline_config,
+            )
+            if normalized_path(baseline_home) != normalized_path(codex_home):
+                raise HarnessError("preflight and baseline used different Codex home directories.")
+            baseline_eval = evaluate_run(
+                turn=baseline_turn,
+                workspace=baseline_workspace,
+                run_dir=baseline_dir,
+                initial_tests=initial_baseline,
+                expected_head=seed_head,
+                subject_version="disabled",
+                subject_commit=None,
+                harness_commit=harness_commit,
+                campaign_id=campaign_id,
+                client_version=client_version,
+                node_executable=launchers.node_executable,
+                disabled_skill_paths=baseline_disabled_skills,
+                allowed_skill_path=None,
+            )
+
+            print("[2/2] Installing core and running one explicit systematic-debugging skill...")
+            installed_root = guard.install_candidate()
+            with AppServer(
+                command=launchers.app_server_command,
+                node_executable=launchers.node_executable,
+                cwd=candidate_workspace,
+                trace_path=preflight_dir / "candidate-skills-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as candidate_preflight:
+                candidate_preflight_home = candidate_preflight.initialize()
+                candidate_skills = candidate_preflight.skills_list(candidate_workspace)
+            if normalized_path(candidate_preflight_home) != normalized_path(codex_home):
+                raise HarnessError("candidate preflight used a different Codex home directory.")
+            explicit_skill = select_skill(
+                candidate_skills,
+                installed_plugin_root=installed_root,
+            )
+            candidate_disabled_skills = enabled_skill_paths(candidate_skills)
+            candidate_config = build_session_config(
+                disabled_skill_paths=candidate_disabled_skills,
+                mcp_server_names=mcp_names,
+            )
+            candidate_turn, candidate_home = run_live_variant(
+                variant="candidate",
+                launchers=launchers,
+                workspace=candidate_workspace,
+                run_dir=candidate_dir,
+                effort=args.effort,
+                timeout_seconds=args.timeout_seconds,
+                model=baseline_turn.model,
+                model_provider=baseline_turn.model_provider,
+                service_tier=baseline_turn.service_tier,
+                explicit_skill=explicit_skill,
+                session_config=candidate_config,
+            )
+            if normalized_path(candidate_home) != normalized_path(codex_home):
+                raise HarnessError("baseline and candidate used different Codex home directories.")
+            if (
+                candidate_turn.model != baseline_turn.model
+                or candidate_turn.model_provider != baseline_turn.model_provider
+                or candidate_turn.service_tier != baseline_turn.service_tier
+            ):
+                raise HarnessError("baseline and candidate did not use identical model settings.")
+            candidate_eval = evaluate_run(
+                turn=candidate_turn,
+                workspace=candidate_workspace,
+                run_dir=candidate_dir,
+                initial_tests=initial_candidate,
+                expected_head=seed_head,
+                subject_version=candidate_version,
+                subject_commit=subject_commit,
+                harness_commit=harness_commit,
+                campaign_id=campaign_id,
+                client_version=client_version,
+                node_executable=launchers.node_executable,
+                disabled_skill_paths=candidate_disabled_skills,
+                allowed_skill_path=explicit_skill[1],
+            )
+
+            runs_path = campaign / "runs.jsonl"
+            runs_path.write_text(
+                "\n".join(
+                    json.dumps(row, ensure_ascii=False, separators=(",", ":"))
+                    for row in (baseline_eval.row, candidate_eval.row)
+                )
+                + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            invalid_reasons = [
+                reason
+                for evaluation in (baseline_eval, candidate_eval)
+                for reason in evaluation.artifact["environment_findings"]
+            ]
+            if invalid_reasons:
+                score_payload = {
+                    "evidence_class": "LIVE",
+                    "release_qualification": "NOT_ASSESSED",
+                    "status": "INVALID",
+                    "invalid_reasons": sorted(set(invalid_reasons)),
+                    "note": "Ambient capabilities were not isolated; scorer was intentionally not run.",
+                }
+                (campaign / "score.json").write_text(
+                    json.dumps(score_payload, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                outcome = "INVALID"
+            else:
+                score_result = run_process(
+                    [sys.executable, str(SCORER_PATH), str(runs_path), "--json"],
+                    cwd=ROOT,
+                    expected={0, 1},
+                )
+                (campaign / "score.json").write_text(
+                    score_result.stdout, encoding="utf-8", newline="\n"
+                )
+                score_payload = json.loads(score_result.stdout)
+                if not isinstance(score_payload, dict):
+                    raise HarnessError("scorer returned an invalid JSON payload.")
+                outcome = "PASS" if score_result.returncode == 0 else "FAIL"
+
+        assert guard is not None
+        final_state = read_plugin_state(launchers, ROOT)
+        original = guard.original
+        state_restored = (
+            final_state.marketplace_existed == original.marketplace_existed
+            and final_state.plugin_installed == original.plugin_installed
+            and final_state.plugin_enabled == original.plugin_enabled
+            and final_state.plugin_version == original.plugin_version
+        )
+        if not state_restored:
+            raise HarnessError("Codex plugin state was not restored to its original value.")
+    except Exception as error:
+        summary = {
+            "campaign": campaign.name,
+            "outcome": "HARNESS_ERROR",
+            "error": str(error),
+            "baseline": baseline_eval.artifact if baseline_eval else None,
+            "candidate": candidate_eval.artifact if candidate_eval else None,
+            "score": score_payload or None,
+            "plugin_state_restored": state_restored,
+            "evidence_boundary": "One authenticated smoke repetition; not release qualification.",
+        }
+        (campaign / "summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
             newline="\n",
         )
-        score_result = run_process(
-            [sys.executable, str(SCORER_PATH), str(runs_path), "--json"],
-            cwd=ROOT,
-            expected={0, 1},
-        )
-        (campaign / "score.json").write_text(
-            score_result.stdout, encoding="utf-8", newline="\n"
-        )
-        score_payload = json.loads(score_result.stdout)
-        if not isinstance(score_payload, dict):
-            raise HarnessError("scorer returned an invalid JSON payload.")
-        if score_result.returncode != 0:
-            print_comparison(baseline_eval, candidate_eval, score_payload)
-            raise HarnessError(
-                "live smoke scorer failed; inspect artifacts before changing the plugin."
-            )
+        raise
 
     assert baseline_eval is not None and candidate_eval is not None
-    final_state = read_plugin_state(launchers, ROOT)
-    original = guard.original
-    state_restored = (
-        final_state.marketplace_existed == original.marketplace_existed
-        and final_state.plugin_installed == original.plugin_installed
-        and final_state.plugin_enabled == original.plugin_enabled
-        and final_state.plugin_version == original.plugin_version
-    )
-    if not state_restored:
-        raise HarnessError("Codex plugin state was not restored to its original value.")
-
     summary = {
         "campaign": campaign.name,
+        "outcome": outcome,
+        "invalid_reasons": sorted(set(invalid_reasons)),
         "baseline": baseline_eval.artifact,
         "candidate": candidate_eval.artifact,
         "score": score_payload,
         "plugin_state_restored": state_restored,
-        "evidence_boundary": (
-            "One authenticated smoke repetition; not the full repeated release qualification."
-        ),
+        "evidence_boundary": "One authenticated smoke repetition; not release qualification.",
     }
     (campaign / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
@@ -1372,9 +1608,15 @@ def main() -> int:
     )
     print_comparison(baseline_eval, candidate_eval, score_payload)
     print(f"\nArtifacts: {campaign}")
-    print("Result: PASS (single live smoke; release qualification remains unassessed)")
-    return 0
-
+    if outcome == "PASS":
+        print("Result: PASS (single live smoke; release qualification remains unassessed)")
+        return 0
+    if outcome == "INVALID":
+        print("Result: INVALID (ambient capabilities were not fully isolated; no scorer claim)")
+        return 1
+    print("Result: FAIL (valid isolated campaign; inspect summary.json and artifacts)")
+    return 1
+r
 
 if __name__ == "__main__":
     try:

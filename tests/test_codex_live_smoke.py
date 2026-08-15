@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 import sys
 import tempfile
 import unittest
@@ -24,19 +25,27 @@ class CodexLiveSmokeTests(unittest.TestCase):
             module.parse_version("Codex unknown")
 
     def test_fixture_starts_failing_and_passes_after_supported_fix(self) -> None:
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("Node.js is unavailable")
         with tempfile.TemporaryDirectory() as tmp:
             seed = Path(tmp) / "seed"
             module.create_fixture(seed)
-            before = module.run_tests(seed)
+            before = module.run_tests(seed, node_executable=node)
             self.assertEqual(before.returncode, 1)
+            before_text = before.stdout + before.stderr
+            self.assertIn(module.TEST_START_MARKER, before_text)
+            self.assertIn(module.TEST_FAIL_MARKER, before_text)
 
-            source = (seed / "retry_after.py").read_text(encoding="utf-8")
-            source = source.replace("int(candidate) // 1000", "int(candidate)")
-            (seed / "retry_after.py").write_text(source, encoding="utf-8", newline="\n")
+            source = (seed / "retry_after.mjs").read_text(encoding="utf-8")
+            source = source.replace("Number(candidate) / 1000", "Number(candidate)")
+            (seed / "retry_after.mjs").write_text(source, encoding="utf-8", newline="\n")
 
-            after = module.run_tests(seed)
+            after = module.run_tests(seed, node_executable=node)
             self.assertEqual(after.returncode, 0)
-            self.assertEqual(module.changed_paths(seed), ["retry_after.py"])
+            after_text = after.stdout + after.stderr
+            self.assertIn(module.TEST_PASS_MARKER, after_text)
+            self.assertEqual(module.changed_paths(seed), ["retry_after.mjs"])
 
     def test_skill_selection_requires_namespaced_enabled_installed_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,9 +77,11 @@ class CodexLiveSmokeTests(unittest.TestCase):
                 "params": {
                     "item": {
                         "type": "commandExecution",
-                        "command": "python -m unittest -v",
+                        "command": "node smoke-test.mjs",
                         "exitCode": 1,
-                        "aggregatedOutput": "FAIL",
+                        "aggregatedOutput": (
+                            module.TEST_START_MARKER + "\n" + module.TEST_FAIL_MARKER
+                        ),
                     }
                 },
             },
@@ -82,8 +93,13 @@ class CodexLiveSmokeTests(unittest.TestCase):
                 "method": "thread/tokenUsage/updated",
                 "params": {
                     "tokenUsage": {
-                        "total": {"totalTokens": 1234},
-                        "last": {"totalTokens": 1234},
+                        "total": {
+                            "totalTokens": 1234,
+                            "inputTokens": 1000,
+                            "cachedInputTokens": 750,
+                            "outputTokens": 234,
+                            "reasoningOutputTokens": 50,
+                        }
                     }
                 },
             },
@@ -112,11 +128,85 @@ class CodexLiveSmokeTests(unittest.TestCase):
             skill=(module.SKILL_QUALIFIED_NAME, "C:/plugin/SKILL.md"),
         )
         self.assertEqual(turn.thread_id, "thread-1")
-        self.assertEqual(turn.commands[0].exit_code, 1)
+        self.assertTrue(module.test_command_state(turn.commands[0])["failed"])
         self.assertEqual(turn.file_change_indexes, [1])
         self.assertEqual(turn.final_message, "Düzeltme tamamlandı.")
         self.assertEqual(module.usage_total_tokens(turn.usage), 1234)
+        self.assertEqual(module.usage_breakdown(turn.usage)["uncached_input_tokens"], 250)
+
+    def test_test_markers_prevent_shell_chain_false_positive(self) -> None:
+        failed_but_shell_zero = module.CommandEvidence(
+            command="node smoke-test.mjs; git diff --check",
+            exit_code=0,
+            output=module.TEST_START_MARKER + "\n" + module.TEST_FAIL_MARKER,
+            event_index=1,
+        )
+        self.assertTrue(module.test_command_state(failed_but_shell_zero)["failed"])
+        self.assertFalse(module.test_command_state(failed_but_shell_zero)["passed"])
+
+        command_not_found = module.CommandEvidence(
+            command="node smoke-test.mjs",
+            exit_code=1,
+            output="node: command not found",
+            event_index=2,
+        )
+        self.assertFalse(module.test_command_state(command_not_found)["failed"])
+        self.assertFalse(module.test_command_state(command_not_found)["started"])
+
+    def test_session_config_disables_ambient_capabilities(self) -> None:
+        config = module.build_session_config(
+            disabled_skill_paths=["C:/skills/one/SKILL.md"],
+            mcp_server_names=["memory", "node_repl"],
+        )
+        self.assertEqual(
+            config["features"],
+            {
+                "plugins": False,
+                "apps": False,
+                "memories": False,
+                "js_repl": False,
+            },
+        )
+        self.assertFalse(config["skills"]["config"][0]["enabled"])
+        self.assertFalse(config["mcp_servers"]["memory"]["enabled"])
+
+    def test_environment_findings_detect_mcp_and_foreign_skill_reads(self) -> None:
+        turn = module.LiveTurn(
+            variant="baseline",
+            thread_id="thread",
+            turn_id="turn",
+            model="model",
+            model_provider="openai",
+            service_tier=None,
+            final_message="done",
+            events=[
+                {
+                    "method": "mcpServer/startupStatus/updated",
+                    "params": {"name": "memory", "status": "ready"},
+                }
+            ],
+            commands=[
+                module.CommandEvidence(
+                    command="Get-Content C:/skills/other/SKILL.md",
+                    exit_code=0,
+                    output="",
+                    event_index=1,
+                )
+            ],
+            file_change_indexes=[],
+            usage={},
+            duration_ms=1,
+            stderr="",
+        )
+        findings = module.runtime_environment_findings(
+            turn=turn,
+            disabled_skill_paths=["C:/skills/other/SKILL.md"],
+            allowed_skill_path=None,
+        )
+        self.assertTrue(any("MCP servers became ready" in item for item in findings))
+        self.assertTrue(any("disabled skill path" in item for item in findings))
 
 
 if __name__ == "__main__":
     unittest.main()
+r
