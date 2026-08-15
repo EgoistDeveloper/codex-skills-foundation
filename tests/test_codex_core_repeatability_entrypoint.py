@@ -112,6 +112,20 @@ class CodexCoreRepeatabilityEntrypointTests(unittest.TestCase):
                 def initialize(self) -> Path:
                     return codex_home
 
+            launchers = base.CodexLaunchers(
+                cli_prefix=("node", "codex.js"),
+                app_server_command=(
+                    "node",
+                    "codex.js",
+                    "app-server",
+                    "--listen",
+                    "stdio://",
+                ),
+                node_executable="node",
+                version_text="codex-cli 0.147.0",
+                version=(0, 147, 0),
+            )
+
             original_guard = base.PluginStateGuard
             original_server = base.AppServer
             original_reader = base.read_plugin_state
@@ -120,7 +134,7 @@ class CodexCoreRepeatabilityEntrypointTests(unittest.TestCase):
             base.read_plugin_state = lambda _launchers, _root: state_box["value"]
             try:
                 guard = module.CampaignStateGuard(
-                    launchers=object(),
+                    launchers=launchers,
                     subject_version="0.2.2",
                 )
                 with guard:
