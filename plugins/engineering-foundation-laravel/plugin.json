@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-foundation-laravel",
+  "version": "0.2.0",
+  "description": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "laravel",
+    "php",
+    "pest",
+    "phpunit",
+    "boost"
+  ]
+}

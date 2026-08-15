@@ -1,0 +1,20 @@
+{
+  "task_id": "partial-example",
+  "completion_status": "PARTIAL",
+  "items": [
+    {
+      "criterion": "Static validation passes",
+      "status": "PASS",
+      "evidence": "Validator exited 0"
+    },
+    {
+      "criterion": "Live provider qualification",
+      "status": "NOT_RUN",
+      "evidence": "Authenticated provider environments were unavailable"
+    }
+  ],
+  "working_tree_reviewed": true,
+  "remaining_risks": [
+    "Provider behavior is unqualified."
+  ]
+}

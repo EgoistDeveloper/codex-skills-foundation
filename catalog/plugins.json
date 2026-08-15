@@ -1,0 +1,63 @@
+{
+  "marketplace": {
+    "name": "egoist-engineering-foundation",
+    "display_name": "Engineering Foundation",
+    "description": "Lean, evidence-driven engineering workflows for coding agents.",
+    "owner_name": "EgoistDeveloper",
+    "owner_url": "https://github.com/EgoistDeveloper"
+  },
+  "plugins": [
+    {
+      "name": "engineering-foundation-core",
+      "version": "0.2.0",
+      "path": "plugins/engineering-foundation-core",
+      "description": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+      "category": "Developer Tools",
+      "keywords": [
+        "engineering",
+        "planning",
+        "verification",
+        "review",
+        "handoff",
+        "multi-agent"
+      ],
+      "display_name": "Engineering Foundation Core",
+      "short_description": "Lean contracts, planning, review, verification, and handoff.",
+      "default_prompt": "Use the engineering foundation to complete this task with the smallest defensible change and verifiable evidence."
+    },
+    {
+      "name": "engineering-foundation-laravel",
+      "version": "0.2.0",
+      "path": "plugins/engineering-foundation-laravel",
+      "description": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+      "category": "Developer Tools",
+      "keywords": [
+        "laravel",
+        "php",
+        "pest",
+        "phpunit",
+        "boost"
+      ],
+      "display_name": "Laravel Engineering Foundation",
+      "short_description": "Project-aware Laravel and PHP engineering workflow.",
+      "default_prompt": "Use the Laravel engineering foundation to inspect this project and make the smallest version-compatible change."
+    },
+    {
+      "name": "engineering-foundation-design",
+      "version": "0.2.0",
+      "path": "plugins/engineering-foundation-design",
+      "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+      "category": "Creativity",
+      "keywords": [
+        "design-system",
+        "ui",
+        "typography",
+        "accessibility",
+        "visual-qa"
+      ],
+      "display_name": "Design Engineering Foundation",
+      "short_description": "Single-direction UI design with rendered visual verification.",
+      "default_prompt": "Use the design engineering foundation to choose one coherent direction, implement it, and verify the rendered states."
+    }
+  ]
+}

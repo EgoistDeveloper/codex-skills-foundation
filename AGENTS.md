@@ -1,37 +1,33 @@
-# Repository instructions
+# Repository working agreement
 
-## Purpose
+## Authority
 
-This repository publishes a portable engineering workflow plugin. Treat behavior, compatibility, and evidence contracts as public API.
+- This file is the repository-wide engineering contract.
+- More specific `AGENTS.md` files may narrow these rules for their directory.
+- Provider adapters must not silently change the portable workflow contract.
 
-## Working rules
+## Work method
 
-- Keep the portable core provider-neutral. Put platform-specific behavior under an adapter or manifest.
-- Default to one writing agent. Delegate only independent, bounded work.
-- Never add recursive delegation. The primary agent remains responsible for integration and final verification.
-- Make the smallest change that satisfies the stated requirement. Do not refactor adjacent code.
-- Once verification passes, do not reopen implementation for aesthetic cleanup unless a concrete defect, failed criterion, security issue, or user-requested scope change exists.
-- Keep skill descriptions specific and compact because clients load them into the initial context.
-- Put long checklists and edge cases under `references/` to preserve progressive disclosure.
-- Do not add an MCP server, external executable, production dependency, credential flow, or network requirement without an explicit threat model and user approval.
-- Do not copy third-party skill text. Record provenance and synthesize original instructions.
+1. Read the nearest guidance and inspect the working tree before editing.
+2. Define acceptance criteria and evidence before implementation.
+3. Use the smallest coherent diff that satisfies the task.
+4. Default to one agent. Delegate only independent, read-heavy, or specialist work.
+5. Keep one writer per file. Reviewers and verifiers are report-only unless explicitly assigned a fix.
+6. Run targeted checks first, then the broadest affordable relevant checks.
+7. Do not claim a check passed unless it ran in the current workspace.
+8. After acceptance and evidence pass, do not reopen the task for speculative cleanup.
 
-## Required verification
-
-For every repository change, run:
+## Repository checks
 
 ```bash
+python scripts/render_manifests.py --check
 python scripts/validate_repository.py --strict
 python -m unittest discover -s tests -v
+python -m compileall -q scripts tests
 ```
 
-Also review the complete diff. A passing unit test does not prove documentation, manifest, or marketplace correctness.
+## Safety
 
-## Review rules
-
-- Flag any behavior that lets an agent claim completion without fresh evidence.
-- Flag any workflow that makes multi-agent the default or permits overlapping write ownership.
-- Flag any skill that silently expands scope after acceptance criteria pass.
-- Flag model names, prices, limits, or product behavior presented as durable facts without a dated source.
-- Flag unsupported manifest fields or paths that escape the plugin root.
-- Flag design guidance that creates multiple unsolicited variants, generic dashboard-card mosaics, or inaccessible light/dark states.
+- Do not add MCP servers, hooks, network calls, secrets, global installers, or destructive commands without an explicit scoped decision and tests.
+- Do not commit generated drift. Update `catalog/plugins.json`, run the renderer, and review the generated diff.
+- Treat live-model evals separately from static validation. Never label an unrun eval as passed.

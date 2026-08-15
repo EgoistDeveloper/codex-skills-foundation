@@ -1,20 +1,44 @@
 {
-  "name": "egoistdeveloper-foundation",
+  "name": "egoist-engineering-foundation",
   "interface": {
-    "displayName": "EgoistDeveloper Engineering"
+    "displayName": "Engineering Foundation"
   },
   "plugins": [
     {
-      "name": "engineering-foundation",
+      "name": "engineering-foundation-core",
       "source": {
         "source": "local",
-        "path": "./plugins/engineering-foundation"
+        "path": "./plugins/engineering-foundation-core"
       },
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
-      "category": "Development"
+      "category": "Developer Tools"
+    },
+    {
+      "name": "engineering-foundation-laravel",
+      "source": {
+        "source": "local",
+        "path": "./plugins/engineering-foundation-laravel"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "engineering-foundation-design",
+      "source": {
+        "source": "local",
+        "path": "./plugins/engineering-foundation-design"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Creativity"
     }
   ]
 }

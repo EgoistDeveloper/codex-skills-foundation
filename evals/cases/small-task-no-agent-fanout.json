@@ -1,0 +1,19 @@
+{
+  "id": "small-task-no-agent-fanout",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Add one validation branch and its focused test in the same module.",
+  "expected_activation": [
+    "surgical-implementation"
+  ],
+  "forbidden_activation": [
+    "bounded-orchestration"
+  ],
+  "behavior_assertions": [
+    "No subagent is spawned.",
+    "Diff stays in the owning module and test.",
+    "No speculative refactor follows a passing verification."
+  ],
+  "risk": "low",
+  "fixture": "fixtures/small-feature"
+}

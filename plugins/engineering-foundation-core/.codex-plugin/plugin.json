@@ -1,0 +1,30 @@
+{
+  "name": "engineering-foundation-core",
+  "version": "0.2.0",
+  "description": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "engineering",
+    "planning",
+    "verification",
+    "review",
+    "handoff",
+    "multi-agent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Engineering Foundation Core",
+    "shortDescription": "Lean contracts, planning, review, verification, and handoff.",
+    "longDescription": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+    "developerName": "EgoistDeveloper",
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Use the engineering foundation to complete this task with the smallest defensible change and verifiable evidence."
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "objective": "Qualify engineering-foundation-core on Codex and Claude.",
+  "acceptance": [
+    "All release-critical cases pass hard gates on both providers."
+  ],
+  "repository_state": {
+    "branch": "example/qualification-v0.2.0",
+    "commit": "NOT_RECORDED",
+    "working_tree": "unknown"
+  },
+  "decisions": [
+    "Use three packages to reduce discovery context.",
+    "Keep hooks and MCP absent in v0.2.0."
+  ],
+  "completed": [
+    "Static validation and unit tests pass."
+  ],
+  "evidence": [
+    {
+      "check": "static",
+      "status": "PASS",
+      "artifact": "examples/completion-evidence.pass.json"
+    },
+    {
+      "check": "live",
+      "status": "NOT_RUN",
+      "artifact": ""
+    }
+  ],
+  "unresolved_risks": [
+    "Provider behavior has not been measured."
+  ],
+  "next_action": "Run each release-critical eval case three times with the core plugin enabled and disabled.",
+  "provenance": [
+    "docs/upstream-adoption-matrix.md"
+  ]
+}

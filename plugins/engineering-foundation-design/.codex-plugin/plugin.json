@@ -1,0 +1,29 @@
+{
+  "name": "engineering-foundation-design",
+  "version": "0.2.0",
+  "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "design-system",
+    "ui",
+    "typography",
+    "accessibility",
+    "visual-qa"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Design Engineering Foundation",
+    "shortDescription": "Single-direction UI design with rendered visual verification.",
+    "longDescription": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+    "developerName": "EgoistDeveloper",
+    "category": "Creativity",
+    "defaultPrompt": [
+      "Use the design engineering foundation to choose one coherent direction, implement it, and verify the rendered states."
+    ]
+  }
+}

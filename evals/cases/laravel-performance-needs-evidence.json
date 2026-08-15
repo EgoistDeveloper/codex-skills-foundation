@@ -1,0 +1,17 @@
+{
+  "id": "laravel-performance-needs-evidence",
+  "revision": 1,
+  "package": "engineering-foundation-laravel",
+  "prompt": "The admin table is slow. Diagnose query behavior before changing indexes, eager loading, or cache.",
+  "expected_activation": [
+    "laravel-project-engineering"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Query count or SQL evidence precedes optimization.",
+    "No cache or index is added without a demonstrated pattern.",
+    "The result includes before/after evidence."
+  ],
+  "risk": "medium",
+  "fixture": "fixtures/laravel-performance"
+}

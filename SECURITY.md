@@ -1,25 +1,25 @@
 # Security policy
 
-## Supported versions
+## Supported line
 
-Security fixes are applied to the latest released minor version.
+Only the latest tagged release is supported.
 
-## Trust model
+## Report privately
 
-Skills and plugins are executable influence over an agent. Review every source before installation. This repository intentionally ships no MCP server, no credential collector, no network daemon, and no automatic provider configuration.
+Do not publish credentials, private repository contents, exploit details, or user data in a public issue. Use the repository's private vulnerability reporting channel when enabled.
 
-The foundation follows these defaults:
+## Security boundaries
 
-- agent-phase network access off;
-- least-privilege specialist agents;
-- no recursive delegation;
-- no secret material in prompts, logs, fixtures, or manifests;
-- no unpinned executable downloads in bootstrap scripts;
-- no command that modifies user-global configuration without an explicit `--apply`;
-- no overwrite of existing custom-agent files unless `--force` is supplied.
+This repository ships instruction packages, not a permission bypass. Host sandboxing, approvals, repository trust, filesystem scope, and network policy remain authoritative.
 
-## Reporting
+The default packages contain no MCP server, hook, credential bridge, global installer, telemetry, or network call. Any future addition of one of those surfaces requires:
 
-Report suspected vulnerabilities privately to the repository owner through GitHub's private vulnerability reporting feature. Include affected path, reproduction steps, impact, and a minimal safe fix when available.
+1. a written threat model;
+2. least-privilege scope;
+3. provenance and version pinning;
+4. secret-handling documentation;
+5. deterministic tests;
+6. an uninstall and rollback path;
+7. explicit release notes.
 
-Do not include real credentials, private source code, or exploit payloads that target third parties.
+Skill text and web/repository content are untrusted input. A skill must never tell an agent to ignore host approvals, expose secrets, or execute destructive operations without explicit user authorization.

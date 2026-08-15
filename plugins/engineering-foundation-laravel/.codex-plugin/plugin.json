@@ -1,0 +1,29 @@
+{
+  "name": "engineering-foundation-laravel",
+  "version": "0.2.0",
+  "description": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "laravel",
+    "php",
+    "pest",
+    "phpunit",
+    "boost"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Laravel Engineering Foundation",
+    "shortDescription": "Project-aware Laravel and PHP engineering workflow.",
+    "longDescription": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+    "developerName": "EgoistDeveloper",
+    "category": "Developer Tools",
+    "defaultPrompt": [
+      "Use the Laravel engineering foundation to inspect this project and make the smallest version-compatible change."
+    ]
+  }
+}

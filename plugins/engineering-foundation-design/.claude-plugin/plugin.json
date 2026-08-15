@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "displayName": "Design Engineering Foundation",
+  "name": "engineering-foundation-design",
+  "version": "0.2.0",
+  "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "design-system",
+    "ui",
+    "typography",
+    "accessibility",
+    "visual-qa"
+  ]
+}

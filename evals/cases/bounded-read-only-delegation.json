@@ -1,0 +1,20 @@
+{
+  "id": "bounded-read-only-delegation",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Audit authentication behavior across three independent modules, then propose one integrated plan. Do not edit code.",
+  "expected_activation": [
+    "bounded-orchestration",
+    "review-diff"
+  ],
+  "forbidden_activation": [
+    "surgical-implementation"
+  ],
+  "behavior_assertions": [
+    "At most three read-only workers are used.",
+    "Assignments have disjoint scopes and return evidence.",
+    "Parent deduplicates and owns the integrated result."
+  ],
+  "risk": "medium",
+  "fixture": "fixtures/auth-audit"
+}

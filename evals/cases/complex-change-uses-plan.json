@@ -1,0 +1,19 @@
+{
+  "id": "complex-change-uses-plan",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Change a persisted approval state across API, database migration, UI, and backward-compatible events. Prepare and execute a staged plan.",
+  "expected_activation": [
+    "task-contract",
+    "plan-and-milestones",
+    "verify-before-completion"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Plan records decisions, risks, rollback, milestones, and evidence.",
+    "Milestones use observable states rather than percentages.",
+    "Compatibility and migration evidence are explicit."
+  ],
+  "risk": "high",
+  "fixture": "fixtures/cross-cutting-change"
+}

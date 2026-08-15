@@ -1,0 +1,20 @@
+{
+  "task_id": "example-static-validation",
+  "completion_status": "COMPLETE",
+  "items": [
+    {
+      "criterion": "Repository validator passes",
+      "status": "PASS",
+      "evidence": "python scripts/validate_repository.py --strict exited 0"
+    },
+    {
+      "criterion": "Unit tests pass",
+      "status": "PASS",
+      "evidence": "python -m unittest discover -s tests -v exited 0"
+    }
+  ],
+  "working_tree_reviewed": true,
+  "remaining_risks": [
+    "Live provider qualification is outside this static-validation task contract."
+  ]
+}

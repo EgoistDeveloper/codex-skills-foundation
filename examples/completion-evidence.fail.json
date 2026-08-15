@@ -1,0 +1,13 @@
+{
+  "task_id": "broken-example",
+  "completion_status": "COMPLETE",
+  "items": [
+    {
+      "criterion": "Tests pass",
+      "status": "PASS",
+      "evidence": ""
+    }
+  ],
+  "working_tree_reviewed": false,
+  "remaining_risks": []
+}

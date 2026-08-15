@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-foundation-core",
+  "version": "0.2.0",
+  "description": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "engineering",
+    "planning",
+    "verification",
+    "review",
+    "handoff",
+    "multi-agent"
+  ]
+}

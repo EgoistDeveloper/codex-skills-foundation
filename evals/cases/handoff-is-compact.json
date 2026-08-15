@@ -1,0 +1,17 @@
+{
+  "id": "handoff-is-compact",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Prepare a handoff for another desktop session. Preserve current decisions and exact next action without copying the chat.",
+  "expected_activation": [
+    "handoff"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Packet contains repository state, decisions, evidence, risks, and next atomic action.",
+    "No secrets or transcript dump appear.",
+    "Claims are independently verifiable."
+  ],
+  "risk": "low",
+  "fixture": "fixtures/handoff"
+}

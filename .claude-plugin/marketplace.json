@@ -1,20 +1,45 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "egoistdeveloper-foundation",
-  "description": "Focused engineering workflows, bounded delegation, verification gates, Laravel guidance, and corporate UI design.",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "egoist-engineering-foundation",
+  "version": "1.0.0",
+  "description": "Lean, evidence-driven engineering workflows for coding agents.",
   "owner": {
-    "name": "EgoistDeveloper"
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
   },
   "plugins": [
     {
-      "name": "engineering-foundation",
-      "description": "Provider-neutral software engineering workflows with narrow specialist agents and evidence-based completion.",
+      "name": "engineering-foundation-core",
+      "description": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+      "version": "0.2.0",
       "author": {
-        "name": "EgoistDeveloper"
+        "name": "EgoistDeveloper",
+        "url": "https://github.com/EgoistDeveloper"
       },
-      "category": "development",
-      "source": "./plugins/engineering-foundation",
-      "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation"
+      "source": "./plugins/engineering-foundation-core",
+      "category": "development"
+    },
+    {
+      "name": "engineering-foundation-laravel",
+      "description": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+      "version": "0.2.0",
+      "author": {
+        "name": "EgoistDeveloper",
+        "url": "https://github.com/EgoistDeveloper"
+      },
+      "source": "./plugins/engineering-foundation-laravel",
+      "category": "development"
+    },
+    {
+      "name": "engineering-foundation-design",
+      "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+      "version": "0.2.0",
+      "author": {
+        "name": "EgoistDeveloper",
+        "url": "https://github.com/EgoistDeveloper"
+      },
+      "source": "./plugins/engineering-foundation-design",
+      "category": "productivity"
     }
   ]
 }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-foundation-design",
+  "version": "0.2.0",
+  "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "design-system",
+    "ui",
+    "typography",
+    "accessibility",
+    "visual-qa"
+  ]
+}

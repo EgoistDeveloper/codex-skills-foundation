@@ -1,20 +1,24 @@
 # Contributing
 
-1. Create a focused branch from `main`.
-2. Keep each change traceable to one behavior or compatibility requirement.
-3. Update or add a deterministic eval case for behavior changes.
-4. Run the repository validator and unit tests.
-5. Document external sources with an exact date and, for Git repositories, a commit SHA when practical.
-6. Open a pull request; do not merge based only on an agent's completion claim.
+A contribution must solve an observed failure mode, not merely add another attractive-sounding prompt.
 
-New skills must:
+## Required evidence
 
-- use a stable kebab-case folder and matching `name`;
-- provide a precise trigger description;
-- keep the common path in `SKILL.md`;
-- move large references to `references/`;
-- define a stop condition and verification evidence;
-- avoid provider-specific assumptions in the portable core;
-- include at least one positive and one negative eval scenario when routing behavior changes.
+- State the behavior problem and a representative task.
+- Capture a baseline run without the change when practical.
+- Add or update activation and behavior eval cases.
+- Keep the skill body concise and move optional detail to focused references.
+- Run all repository checks.
+- Record live provider qualification separately; static tests are not a substitute.
 
-Third-party text may not be copied unless licensing and attribution are explicit. Prefer original synthesis.
+## Skill acceptance
+
+A new skill is justified only when all are true:
+
+1. The workflow is reused across projects.
+2. Existing guidance cannot express it without becoming ambiguous or bloated.
+3. Its trigger boundary can be tested.
+4. Its outcome can be evaluated.
+5. Its expected value exceeds its discovery and maintenance cost.
+
+Prefer improving an existing skill over adding a near-duplicate.

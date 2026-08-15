@@ -1,0 +1,29 @@
+{
+  "task_id": "example-static-validation",
+  "objective": "Prove that the candidate repository is internally well-formed in the current workspace.",
+  "acceptance": [
+    "Repository validator passes",
+    "Unit tests pass"
+  ],
+  "non_goals": [
+    "Qualify behavior in live Codex or Claude clients"
+  ],
+  "constraints": [
+    "Use only checks available in the repository"
+  ],
+  "evidence": [
+    {
+      "criterion": "Repository validator passes",
+      "method": "Run python scripts/validate_repository.py --strict"
+    },
+    {
+      "criterion": "Unit tests pass",
+      "method": "Run python -m unittest discover -s tests -v"
+    }
+  ],
+  "risk": "low",
+  "reopen_conditions": [
+    "A repository validator or unit test fails",
+    "The acceptance contract changes"
+  ]
+}

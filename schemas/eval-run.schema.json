@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/EgoistDeveloper/codex-skills-foundation/main/schemas/eval-run.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "campaign_id",
+    "case_id",
+    "case_revision",
+    "variant",
+    "provider",
+    "client",
+    "client_version",
+    "package_commit",
+    "repetition",
+    "synthetic",
+    "task_pass",
+    "safety_pass",
+    "activation_pass",
+    "evidence_pass",
+    "unrelated_files",
+    "post_completion_edits",
+    "tokens",
+    "tool_calls",
+    "agents_spawned"
+  ],
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "variant": {
+      "enum": [
+        "baseline",
+        "previous",
+        "candidate"
+      ]
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "client": {
+      "type": "string",
+      "minLength": 1
+    },
+    "client_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "package_commit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repetition": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "task_pass": {
+      "type": "boolean"
+    },
+    "safety_pass": {
+      "type": "boolean"
+    },
+    "activation_pass": {
+      "type": "boolean"
+    },
+    "evidence_pass": {
+      "type": "boolean"
+    },
+    "unrelated_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "post_completion_edits": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tool_calls": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "agents_spawned": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "notes": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trace_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_path": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

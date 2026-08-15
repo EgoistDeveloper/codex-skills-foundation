@@ -1,65 +1,32 @@
-# Codex Skills Foundation
+# Codex Skills Foundation v0.2 Candidate
 
-Codex, Codex Cloud, Claude Code, Hermes Agent ve Agent Skills uyumlu diğer istemciler için **kanıta dayalı, token-bilinçli ve sınırlandırılmış yazılım mühendisliği iş akışları**.
+A lean, provider-neutral engineering foundation for Codex, ChatGPT, Claude Code, and clients that implement the open Agent Skills or Agent Plugins specifications.
 
-Bu repository tek bir dev prompt değildir. Taşınabilir skill çekirdeği, Codex ve Claude adaptörleri, dar yetkili uzman agent tanımları, deterministik yönlendirme araçları ve davranış eval'ları içerir.
+This tree is a **clean-room candidate**, not a verified patch against Pull Request #1. The source PR was not readable from the environment that produced this package. Compare it with the actual branch before merging; matching file names are not evidence of matching behavior.
 
-## Temel hedef
+## Package model
 
-Agent'ın:
+| Package | Install by default? | Purpose |
+|---|---:|---|
+| `engineering-foundation-core` | Yes | Contracts, planning, bounded orchestration, implementation, debugging, review, verification, and handoff |
+| `engineering-foundation-laravel` | Only for Laravel/PHP repos | Project-local Laravel workflow; delegates current framework guidance to Laravel Boost when present |
+| `engineering-foundation-design` | Only for UI work | Design direction, typography/tokens, implementation states, and visual verification |
 
-- görevi anlamadan koda atlamamasını;
-- gereksiz multi-agent ve subagent maliyeti oluşturmamasını;
-- mevcut kod stiline uyan en küçük doğru değişikliği yapmasını;
-- testler geçtikten sonra gerekçesiz biçimde kendi kodunu tekrar refaktör etmemesini;
-- tasarım görevlerinde tek, kurumsal ve doğrulanabilir bir yön üretmesini;
-- “tamamlandı” demeden önce taze kanıt sunmasını
+The split is deliberate. Skill names and descriptions consume discovery context before a skill body loads. Installing only the relevant package is cheaper and reduces accidental activation.
 
-sağlayan bir çalışma sözleşmesi sunmak.
+## Compatibility layers
 
-> Hiçbir talimat paketi olasılıksal bir agent için sıfır hata garantisi veremez. Bu foundation; hata olasılığını, kapsam kaymasını, gereksiz yeniden çalışmayı ve yanlış tamamlanma iddialarını ölçülebilir kapılarla azaltır.
+Each plugin directory contains three independent manifests:
 
-## Repository yapısı
+- `plugin.json`: Agent Plugins 1.0.0 portable manifest.
+- `.codex-plugin/plugin.json`: OpenAI ChatGPT/Codex package manifest.
+- `.claude-plugin/plugin.json`: Claude Code package manifest.
 
-```text
-.
-├── .agents/plugins/marketplace.json
-├── .claude-plugin/marketplace.json
-├── .codex/agents/                 # Bu repository için Codex uzmanları
-├── plugins/engineering-foundation/
-│   ├── plugin.json                # Agent Plugins v1 taşınabilir manifest
-│   ├── .codex-plugin/plugin.json  # Codex görünüm/uyumluluk katmanı
-│   ├── .claude-plugin/plugin.json # Claude Code manifesti
-│   ├── agents/                    # Claude Code uzman agent'ları
-│   ├── adapters/                  # Kurulabilir istemci adaptörleri
-│   ├── scripts/                   # Router, evidence gate, adapter installer
-│   └── skills/                    # Taşınabilir mühendislik skill'leri
-├── evals/                         # Deterministik davranış vakaları
-├── scripts/                       # Repository doğrulama ve bootstrap
-└── tests/                         # Standart kütüphane ile unit testler
-```
+Shared metadata is generated from `catalog/plugins.json`; provider manifests remain separate because their schemas and runtime behavior are not identical.
 
-## Skill kataloğu
+## Requirements and validation
 
-| Skill | Amaç |
-|---|---|
-| `engineering-router` | Görevi sınıflandırır; tek agent, subagent veya bounded multi-agent yolunu seçer |
-| `goal-contract` | İsteği kabul kriterleri, non-goals ve kanıt sözleşmesine dönüştürür |
-| `bounded-plan` | Gerektiği kadar plan üretir; plan döngülerini sınırlar |
-| `surgical-implementation` | En küçük doğru diff'i üretir; drive-by refactor'ı yasaklar |
-| `test-first-change` | Uygun seam'lerde red-green-refactor uygular |
-| `systematic-debugging` | Reproduce → localize → hypothesize → fix → guard döngüsü |
-| `bounded-multi-agent` | Bağımsız işleri sınırlı ve token-bilinçli biçimde delege eder |
-| `independent-review` | Spec uyumu ve kod kalitesini taze bağlamla inceler |
-| `verification-gate` | Taze komut çıktısı ve requirement kanıtı olmadan tamamlanmayı engeller |
-| `source-grounded-research` | Güncel teknik kararları birincil kaynak ve provenance ile temellendirir |
-| `corporate-ui-design` | Tek yönlü, kurumsal, erişilebilir ve görsel olarak doğrulanmış UI üretir |
-| `laravel-engineering` | Laravel/PHP için sürüm-duyarlı, mevcut konvansiyonlara uygun değişiklikler |
-| `cloud-readiness` | Codex Cloud setup, cache, secrets ve network sınırlarını doğrular |
-| `context-handoff` | Uzun veya kesintiye uğramış görevleri kanıt odaklı bir handoff'a sıkıştırır |
-| `skill-authoring` | Skill trigger, progressive disclosure, yardımcı script ve eval tasarımını yönlendirir |
-
-## Hızlı doğrulama
+Repository checks require Python 3.11 or newer. No third-party Python package is needed for the normal bootstrap.
 
 Linux/macOS/WSL:
 
@@ -73,83 +40,47 @@ Windows PowerShell:
 ./scripts/bootstrap.ps1
 ```
 
-Doğrudan:
+Direct checks:
 
 ```bash
+python scripts/render_manifests.py --check
 python scripts/validate_repository.py --strict
 python -m unittest discover -s tests -v
+python scripts/evidence_gate.py \
+  examples/completion-evidence.pass.json \
+  --contract examples/task-contract.static-validation.json
+python scripts/score_eval_runs.py \
+  evals/fixtures/sample-runs.jsonl \
+  --allow-synthetic
 ```
 
-## Codex yerel marketplace
+The sample eval rows are synthetic and test only the scorer. A green scorer result is not a provider qualification result. Live release runs must satisfy the complete surface/case matrix in `docs/qualification.md`.
+
+## Optional project-scoped agents
+
+The portable workflow works with host-native subagents. Three narrow, model-neutral, read-only project profiles are also supplied for repeated exploration, review, and evidence-audit work.
+
+Dry run first:
 
 ```bash
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
-codex plugin add engineering-foundation@egoistdeveloper-foundation
+python scripts/install_agent_profiles.py --provider codex --target /path/to/project
+python scripts/install_agent_profiles.py --provider claude --target /path/to/project
 ```
 
-Geliştirme branch'ini test etmek için `--ref <branch>` kullanın ve yeni bir Codex thread'i başlatın.
+Add `--apply` only after reviewing destinations. Existing conflicting files are not overwritten unless `--force` is explicit. See `docs/agent-profiles.md`.
 
-## Claude Code marketplace
+## Installation testing
 
-Claude Code içinde:
+Use the provider's current local-marketplace workflow. Do not copy files into global configuration silently. Validate a local install, restart or reload the client when required, and execute `docs/qualification.md` before sharing a release.
 
-```text
-/plugin marketplace add EgoistDeveloper/codex-skills-foundation
-/plugin install engineering-foundation@egoistdeveloper-foundation
-```
+## Intentionally absent
 
-## Codex uzman agent adaptörleri
+- No MCP server.
+- No lifecycle hook that can block or mutate user work.
+- No credentials, telemetry, or external-model router.
+- No hard-coded model names.
+- No recursive agent delegation.
+- No automatic commits, pushes, merges, migrations, or deployment.
+- No claim that static unit tests prove model behavior.
 
-Plugin skill'leri tek başına çalışır. İsteğe bağlı Codex uzmanlarını hedef projeye kurmak için:
-
-```bash
-python plugins/engineering-foundation/scripts/install_codex_agents.py --target .codex/agents --apply
-```
-
-Komut mevcut farklı dosyaları varsayılan olarak ezmez. Önce `--dry-run` ile önizleme yapılabilir.
-
-## Codex Cloud
-
-Cloud environment setup script:
-
-```bash
-./scripts/bootstrap.sh
-```
-
-Maintenance script:
-
-```bash
-python scripts/validate_repository.py
-```
-
-Agent-phase internet erişimini varsayılan olarak kapalı tutun. Güncel kaynak araştırması gereken görevlerde yalnızca gerekli domain ve HTTP yöntemlerini allowlist'e ekleyin. Ayrıntılar: [`docs/codex-cloud.md`](docs/codex-cloud.md).
-
-## Tasarım sözleşmesi
-
-Tasarım görevleri için önce mevcut design system okunur; yoksa tek bir yön kilitlenir. `corporate-ui-design` skill'i:
-
-- light ve dark temayı ayrı kalite yüzeyleri olarak ele alır;
-- Türkçe glyph desteğini doğrular;
-- rastgele neon, kart mozaiği, glassmorphism ve “AI görünümü”nü engeller;
-- typography, spacing, layout ve component token'larını `DESIGN.md` ile sabitler;
-- Playwright veya mevcut browser aracıyla görsel ve davranışsal kontrol ister;
-- kabul kriterleri sağlandıktan sonra yeni varyant üretmez.
-
-Şablon: [`plugins/engineering-foundation/skills/corporate-ui-design/assets/DESIGN.template.md`](plugins/engineering-foundation/skills/corporate-ui-design/assets/DESIGN.template.md).
-
-## Güvenlik
-
-Bu sürüm:
-
-- MCP server kurmaz;
-- secret istemez veya saklamaz;
-- harici model/provider yapılandırmasını değiştirmez;
-- agent internet erişimini açmaz;
-- recursive delegation kullanmaz;
-- reviewer ve verifier agent'larını read-only tanımlar.
-
-Güvenlik politikası: [`SECURITY.md`](SECURITY.md).
-
-## Durum
-
-`0.1.0` foundation sürümü. Kapsam, doğrulanan çekirdek davranışlar ve adaptörlerle sınırlıdır. Canlı model eval sonuçları ancak gerçek Codex/Claude/Hermes oturumları çalıştırıldığında kaydedilecektir; deterministik eval harness sahte başarı üretmez.
+See `AUDIT_REPORT_TR.md` for the research-backed decisions and `MIGRATION_FROM_PR1.md` for a safe comparison workflow.
