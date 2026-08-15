@@ -25,7 +25,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import run_codex_live_smoke as base
 
 CASE_ID = "tiny-edit-skips-plan"
-CASE_REVISION = 1
+CASE_REVISION = 2
 ALLOWED_CHANGED_FILES = {"settings.json"}
 VERIFY_COMMAND = "node verify-config.mjs"
 VERIFY_START_MARKER = "EF_NEGATIVE_VERIFY_STARTED"
@@ -143,6 +143,15 @@ def toml_bool(value: bool) -> str:
     return "true" if value else "false"
 
 
+def toml_dotted_key_segment(value: str) -> str:
+    if value and all(
+        character.isascii() and (character.isalnum() or character in "_-")
+        for character in value
+    ):
+        return value
+    return json.dumps(value, ensure_ascii=True)
+
+
 def plugin_table_override(plugin_states: dict[str, bool]) -> str:
     entries = ", ".join(
         f"{json.dumps(plugin_id, ensure_ascii=True)} = {{ enabled = {toml_bool(enabled)} }}"
@@ -155,10 +164,12 @@ def build_isolated_app_server_command(
     *,
     launchers: base.CodexLaunchers,
     installed_plugin_ids: list[str],
+    mcp_server_names: list[str],
     plugins_enabled: bool,
     enabled_plugin_id: str | None,
 ) -> tuple[tuple[str, ...], list[str]]:
     plugin_ids = sorted(set(installed_plugin_ids))
+    mcp_names = sorted(set(mcp_server_names))
     if plugins_enabled:
         if enabled_plugin_id is None:
             raise base.HarnessError("an enabled plugin id is required for candidate startup.")
@@ -186,6 +197,10 @@ def build_isolated_app_server_command(
     ]
     if plugin_states:
         overrides.append(plugin_table_override(plugin_states))
+    overrides.extend(
+        f"mcp_servers.{toml_dotted_key_segment(name)}.enabled=false"
+        for name in mcp_names
+    )
 
     command: list[str] = [*launchers.cli_prefix, "app-server"]
     for override in overrides:
@@ -361,6 +376,7 @@ def evaluate_run(
     node_executable: str,
     disabled_skill_paths: list[str],
     disabled_plugin_ids: list[str],
+    disabled_mcp_server_names: list[str],
     startup_config_overrides: list[str],
     exposed_core_skills: dict[str, str],
 ) -> NegativeEvaluation:
@@ -496,6 +512,7 @@ def evaluate_run(
         "environment_pass": environment_pass,
         "environment_findings": environment_findings,
         "disabled_plugin_ids": sorted(set(disabled_plugin_ids)),
+        "disabled_mcp_server_names": sorted(set(disabled_mcp_server_names)),
         "startup_config_overrides": list(startup_config_overrides),
         "token_usage": token_usage,
         "tokens": token_usage["total_tokens"],
@@ -634,6 +651,7 @@ def compact_evaluation(evaluation: NegativeEvaluation | None) -> dict[str, Any] 
         "changed_paths": artifact.get("changed_paths", []),
         "exact_change_pass": artifact.get("exact_change_pass"),
         "disabled_plugin_ids": artifact.get("disabled_plugin_ids", []),
+        "disabled_mcp_server_names": artifact.get("disabled_mcp_server_names", []),
         "startup_config_overrides": artifact.get("startup_config_overrides", []),
         "observed_core_skill_reads": artifact.get("observed_core_skill_reads", []),
         "forbidden_skill_reads": artifact.get("forbidden_skill_reads", []),
@@ -698,6 +716,12 @@ def print_failure_diagnostics(path: Path, payload: dict[str, Any]) -> None:
         disabled_plugins = candidate.get("disabled_plugin_ids", [])
         if disabled_plugins:
             print("  disabled-plugins: " + ", ".join(str(item) for item in disabled_plugins))
+        disabled_mcp_servers = candidate.get("disabled_mcp_server_names", [])
+        if disabled_mcp_servers:
+            print(
+                "  disabled-mcp-servers: "
+                + ", ".join(str(item) for item in disabled_mcp_servers)
+            )
         startup_overrides = candidate.get("startup_config_overrides", [])
         if startup_overrides:
             print(f"  startup-overrides: {len(startup_overrides)}")
@@ -825,6 +849,7 @@ def main() -> int:
             ) as preflight:
                 codex_home = preflight.initialize()
             guard.snapshot_config(codex_home)
+            mcp_names = base.configured_mcp_server_names(codex_home)
             guard.prepare_baseline()
             baseline_plugin_ids = installed_plugin_ids(launchers)
             (
@@ -833,6 +858,7 @@ def main() -> int:
             ) = build_isolated_app_server_command(
                 launchers=launchers,
                 installed_plugin_ids=baseline_plugin_ids,
+                mcp_server_names=mcp_names,
                 plugins_enabled=False,
                 enabled_plugin_id=None,
             )
@@ -849,7 +875,6 @@ def main() -> int:
             if base.normalized_path(baseline_preflight_home) != base.normalized_path(codex_home):
                 raise base.HarnessError("preflight sessions used different Codex home directories.")
 
-            mcp_names = base.configured_mcp_server_names(codex_home)
             baseline_disabled_skills = base.enabled_skill_paths(baseline_skills)
             baseline_config = base.build_session_config(
                 disabled_skill_paths=baseline_disabled_skills,
@@ -895,6 +920,7 @@ def main() -> int:
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=baseline_disabled_skills,
                 disabled_plugin_ids=baseline_plugin_ids,
+                disabled_mcp_server_names=mcp_names,
                 startup_config_overrides=baseline_startup_overrides,
                 exposed_core_skills={},
             )
@@ -908,6 +934,7 @@ def main() -> int:
             ) = build_isolated_app_server_command(
                 launchers=launchers,
                 installed_plugin_ids=candidate_plugin_ids,
+                mcp_server_names=mcp_names,
                 plugins_enabled=True,
                 enabled_plugin_id=base.PLUGIN_ID,
             )
@@ -968,6 +995,7 @@ def main() -> int:
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=candidate_disabled_skills,
                 disabled_plugin_ids=candidate_disabled_plugins,
+                disabled_mcp_server_names=mcp_names,
                 startup_config_overrides=candidate_startup_overrides,
                 exposed_core_skills=exposed_core,
             )
