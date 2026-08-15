@@ -11,7 +11,7 @@
     {
       "name": "engineering-foundation-core",
       "description": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "EgoistDeveloper",
         "url": "https://github.com/EgoistDeveloper"
@@ -22,7 +22,7 @@
     {
       "name": "engineering-foundation-laravel",
       "description": "Repository-aware Laravel and PHP engineering using installed versions, local conventions, database evidence, tests, and Laravel Boost when present.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "EgoistDeveloper",
         "url": "https://github.com/EgoistDeveloper"
@@ -33,7 +33,7 @@
     {
       "name": "engineering-foundation-design",
       "description": "Single-direction interface design, design-contract authoring, implementation states, accessibility, and rendered visual verification.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "EgoistDeveloper",
         "url": "https://github.com/EgoistDeveloper"
@@ -44,7 +44,7 @@
     {
       "name": "engineering-foundation-cloud",
       "description": "Codex Cloud and remote-agent environment readiness with idempotent setup, bounded network access, secret safety, caching, and reproducible checks.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "EgoistDeveloper",
         "url": "https://github.com/EgoistDeveloper"
@@ -55,7 +55,7 @@
     {
       "name": "engineering-foundation-authoring",
       "description": "Author and maintain compact Agent Skills and plugin packages with precise triggers, progressive disclosure, provenance, validation, and eval coverage.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "EgoistDeveloper",
         "url": "https://github.com/EgoistDeveloper"

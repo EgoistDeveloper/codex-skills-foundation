@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import stat
 import sys
 import zipfile
@@ -14,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog/plugins.json"
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
+FIXED_FILE_MODE = stat.S_IFREG | 0o644
 
 
 def sha256(path: Path) -> str:
@@ -26,7 +26,7 @@ def sha256(path: Path) -> str:
 
 def safe_files(plugin_root: Path) -> list[Path]:
     files: list[Path] = []
-    for path in sorted(plugin_root.rglob("*")):
+    for path in plugin_root.rglob("*"):
         if path.is_symlink():
             raise ValueError(f"symlinks are not allowed in release packages: {path}")
         if path.is_file():
@@ -34,7 +34,9 @@ def safe_files(plugin_root: Path) -> list[Path]:
             if relative.is_absolute() or ".." in relative.parts:
                 raise ValueError(f"unsafe release path: {relative}")
             files.append(path)
-    return files
+    # Path ordering follows host path semantics, including case-folding on Windows.
+    # Sort canonical POSIX archive names instead so entry order is identical everywhere.
+    return sorted(files, key=lambda path: path.relative_to(plugin_root).as_posix())
 
 
 def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
@@ -53,13 +55,17 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
     if not any(path.parts[:1] == ("skills",) and path.name == "SKILL.md" for path in relative_files):
         raise ValueError(f"{plugin['name']} has no packaged skill")
 
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    # The packages are tiny. Store entries without DEFLATE so archive bytes do not depend on
+    # platform-specific zlib builds or Python patch releases.
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
         for path in files:
             relative = path.relative_to(plugin_root).as_posix()
             info = zipfile.ZipInfo(relative, FIXED_TIME)
-            mode = stat.S_IFREG | (0o755 if os.access(path, os.X_OK) else 0o644)
-            info.external_attr = mode << 16
-            info.compress_type = zipfile.ZIP_DEFLATED
+            # Plugin packages contain data/configuration files, not directly executed programs.
+            # Pin Unix metadata instead of using os.access(), whose X_OK behavior differs on Windows.
+            info.create_system = 3
+            info.external_attr = FIXED_FILE_MODE << 16
+            info.compress_type = zipfile.ZIP_STORED
             zf.writestr(info, path.read_bytes())
     return archive, sha256(archive)
 
@@ -82,9 +88,8 @@ def main() -> int:
     try:
         for plugin in catalog["plugins"]:
             built.append(build_archive(plugin, output))
-        checksum_path.write_text(
-            "".join(f"{digest}  {path.name}\n" for path, digest in built),
-            encoding="utf-8",
+        checksum_path.write_bytes(
+            "".join(f"{digest}  {path.name}\n" for path, digest in built).encode("utf-8")
         )
         if args.check:
             first = {path.name: path.read_bytes() for path, _ in built}

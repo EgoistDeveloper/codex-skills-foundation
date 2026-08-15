@@ -1,6 +1,6 @@
 {
   "name": "engineering-foundation-laravel",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Repository-aware Laravel and PHP engineering using installed versions, local conventions, database evidence, tests, and Laravel Boost when present.",
   "author": {
     "name": "EgoistDeveloper",

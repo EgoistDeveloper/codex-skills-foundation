@@ -1,35 +1,43 @@
-# v0.2.0 release evidence
+# v0.2.1 release evidence
 
 This record separates deterministic repository/provider validation from authenticated model-behavior qualification. A green parser is not suddenly a sentient software engineer, however persuasive the badge may look.
 
 ## Source
 
-- release version: `0.2.0`
-- integration pull request: `#2`
-- first fully green implementation revision: `c3220ab1f57fe906b92a50d571cc893d29ced39f`
-- release tag: `v0.2.0` after the reviewed pull request is merged to `main`
+- release version: `0.2.1`
+- integration pull request: `#3`
+- first fully green repair revision: `761c58684b573eeda01afa836ea891c99f6c4a76`
+- release tag: `v0.2.1` after the reviewed pull request is merged to `main`
 
 ## Deterministic validation
 
 | Check | Result | Evidence |
-|---|---|---|
-| local Linux bootstrap | **PASS** | strict repository validator; 39 unit tests; Python compile; schemas, YAML, Markdown links, security scan, negative evidence fixtures, scorer self-test, deterministic packages |
-| GitHub Linux bootstrap | **PASS** | workflow run `31877375363`, job `94994996918` |
-| GitHub Windows bootstrap | **PASS** | workflow run `31877375363`, job `94994996931` |
-| Claude marketplace and plugin validation | **PASS** | Claude Code `2.1.220`, strict validation of the root marketplace and all five plugin manifests in workflow run `31877375293` |
-| Codex marketplace and install smoke | **PASS** | Codex CLI `0.146.0`; marketplace registration plus installation and enablement of all five packages in workflow run `31877375293` |
-| CI-produced package reproducibility | **PASS** | artifact `9245097184`; all five CI ZIPs matched the locally generated ZIPs byte-for-byte |
+|---|---:|---|
+| strict repository validator | **PASS** | 0 errors and 0 warnings in workflow run `31884055490` |
+| unit tests | **PASS** | 40 tests in workflow run `31884055490` |
+| GitHub Linux bootstrap | **PASS** | workflow run `31884055490`, job `95010621032` |
+| GitHub Windows bootstrap | **PASS** | workflow run `31884055490`, job `95010621130` |
+| Linux/Windows package byte identity | **PASS** | workflow run `31884055490`, job `95010676338` |
+| Claude marketplace and plugin validation | **PASS** | Claude Code `2.1.220` in workflow run `31884055487`, job `95010621044` |
+| Codex marketplace and install smoke | **PASS** | Codex CLI `0.146.0` in workflow run `31884055487`, job `95010621044` |
+
+## Repaired defects
+
+- Repository-wide scans no longer descend into `.venv`, `venv`, `node_modules`, or common local tool caches.
+- Plugin archives use fixed Unix regular-file mode `0644` rather than host-dependent executable checks.
+- ZIP entries are ordered by canonical POSIX archive path, stored without zlib-dependent compression, and checksum manifests use explicit LF bytes.
+- CI now compares Linux and Windows package artifacts byte-for-byte.
 
 ## Release packages
 
 | Package | SHA-256 |
 |---|---|
-| `engineering-foundation-core-0.2.0.zip` | `71a8051b210b1e9581d2b523c3b1e954948df828ac94199d3613e71a2bfb3503` |
-| `engineering-foundation-laravel-0.2.0.zip` | `01845751accd1f3723fdc78c2eb7482fd312fcfaa7885b720fe68a1e32f8a11b` |
-| `engineering-foundation-design-0.2.0.zip` | `92efe1d7ecc3e1e16a0eb4fbb7453191c2f2c1ef1dc833916db64a95a7f49b4b` |
-| `engineering-foundation-cloud-0.2.0.zip` | `5518a3d4de0c7dfd6084f6c9d5a75442ea01020b64b4acbc4e51ca11948a0485` |
-| `engineering-foundation-authoring-0.2.0.zip` | `eb4103ae32d770695e011ad2888a25d11c49ff562a2297b3a3c26e14036458bc` |
+| `engineering-foundation-core-0.2.1.zip` | `541470441ce809f6a2f99c2fece3a18db80b49f5296d1ba860aad27b26a4aa61` |
+| `engineering-foundation-laravel-0.2.1.zip` | `64fb34691d66b7051c77c0a90058631ef7e0b308cd010878777642696d65a79c` |
+| `engineering-foundation-design-0.2.1.zip` | `3f7d5f37d264e7aa1d2ab94dea12a62806e5cef1728225319845429a33a63296` |
+| `engineering-foundation-cloud-0.2.1.zip` | `4fe88385d98e3ef2b36aa2b304b891c76db61db99f88480e211efb6b7a575982` |
+| `engineering-foundation-authoring-0.2.1.zip` | `cbd7906aa03af50e850b253f4ecf17ced202b126f4fa33ba120036f5f196f07b` |
 
 ## Evidence boundary
 
-Authenticated behavior campaigns for ChatGPT/Codex desktop, Codex CLI model sessions, Codex Cloud, Claude Code model sessions, and an Agent Plugins reference client remain `NOT_RUN`. The checked-in eval rows are synthetic scorer fixtures and report `NOT_QUALIFIED` by design. This release is therefore statically validated and provider-package validated, not represented as live-model-qualified.
+Authenticated behavior campaigns for ChatGPT/Codex desktop, Codex CLI model sessions, Codex Cloud, Claude Code model sessions, and an Agent Plugins reference client remain `NOT_RUN`. The checked-in eval rows are synthetic scorer fixtures and report `NOT_QUALIFIED` by design. This release is statically validated, provider-package validated, and cross-platform reproducible, but is not represented as live-model-qualified.

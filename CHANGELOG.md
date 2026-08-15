@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 - 2026-08-15
+
+### Cross-platform correctness
+
+- Excluded local virtual environments and dependency directories from repository-wide link, secret, and placeholder scans.
+- Added `.venv`, `venv`, `node_modules`, and common tool caches to `.gitignore`.
+- Replaced operating-system-dependent executable checks with fixed Unix `0644` ZIP metadata.
+- Canonicalized ZIP entry order by POSIX archive path, stored entries without zlib-dependent compression, and wrote checksum manifests with explicit LF bytes.
+- Added regression tests for local dependency exclusions and cross-platform archive modes.
+- Added a CI gate that compares Linux and Windows package artifacts byte-for-byte.
+
 ## 0.2.0 - 2026-08-15
 
 ### Architecture

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import stat
 import tempfile
 import unittest
 import zipfile
@@ -25,11 +26,18 @@ class PackagingTests(unittest.TestCase):
                 self.assertEqual(first_digest, second_digest)
                 with zipfile.ZipFile(archive) as zf:
                     names = zf.namelist()
+                    self.assertEqual(names, sorted(names))
                     self.assertIn("plugin.json", names)
                     self.assertIn(".codex-plugin/plugin.json", names)
                     self.assertIn(".claude-plugin/plugin.json", names)
                     self.assertTrue(any(name.endswith("/SKILL.md") for name in names))
                     self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts for name in names))
+                    for info in zf.infolist():
+                        self.assertEqual(info.create_system, 3)
+                        self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+                        mode = info.external_attr >> 16
+                        self.assertEqual(mode & 0o170000, stat.S_IFREG)
+                        self.assertEqual(mode & 0o777, 0o644)
 
 
 if __name__ == "__main__":

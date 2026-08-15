@@ -37,10 +37,51 @@ jobs:
       - name: Run complete bootstrap
         run: python scripts/bootstrap.py
       - name: Upload release packages
-        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: engineering-foundation-packages
+          name: engineering-foundation-packages-${{ matrix.os }}
           path: dist/
           if-no-files-found: error
           retention-days: 7
+
+  cross-platform-package-reproducibility:
+    name: cross-platform package reproducibility
+    needs: bootstrap
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download Linux packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: engineering-foundation-packages-ubuntu-latest
+          path: artifacts/ubuntu
+      - name: Download Windows packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: engineering-foundation-packages-windows-latest
+          path: artifacts/windows
+      - name: Require byte-identical package outputs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          linux = Path("artifacts/ubuntu")
+          windows = Path("artifacts/windows")
+          linux_files = {path.relative_to(linux): path for path in linux.rglob("*") if path.is_file()}
+          windows_files = {path.relative_to(windows): path for path in windows.rglob("*") if path.is_file()}
+          if set(linux_files) != set(windows_files):
+              missing_linux = sorted(str(path) for path in set(windows_files) - set(linux_files))
+              missing_windows = sorted(str(path) for path in set(linux_files) - set(windows_files))
+              raise SystemExit(
+                  f"artifact file-set mismatch; missing on Linux={missing_linux}, missing on Windows={missing_windows}"
+              )
+          mismatches = [
+              str(relative)
+              for relative in sorted(linux_files)
+              if linux_files[relative].read_bytes() != windows_files[relative].read_bytes()
+          ]
+          if mismatches:
+              raise SystemExit(f"cross-platform package bytes differ: {mismatches}")
+          print("cross-platform package reproducibility: PASS")
+          PY

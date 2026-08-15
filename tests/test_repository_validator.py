@@ -31,6 +31,20 @@ class RepositoryValidatorTests(unittest.TestCase):
         self.assertEqual(report.errors, [])
         self.assertEqual(report.warnings, [])
 
+    def test_local_dependency_directories_are_excluded(self) -> None:
+        for relative in (
+            ".venv/Lib/site-packages/example.py",
+            "venv/lib/python/site-packages/example.py",
+            "node_modules/example/index.js",
+            ".tox/example/lib/site-packages/example.py",
+        ):
+            self.assertTrue(module.is_excluded_path(ROOT / relative))
+        self.assertFalse(
+            module.is_excluded_path(
+                ROOT / "plugins/engineering-foundation-core/skills/task-contract/SKILL.md"
+            )
+        )
+
     def test_catalog_matches_five_modular_packages(self) -> None:
         catalog = json.loads((ROOT / "catalog/plugins.json").read_text(encoding="utf-8"))
         names = [plugin["name"] for plugin in catalog["plugins"]]
