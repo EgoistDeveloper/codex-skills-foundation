@@ -1,0 +1,55 @@
+name: Apply systematic debugging reproduction gate fix
+
+on:
+  push:
+    branches:
+      - fix/systematic-debugging-reproduction-gate
+    paths:
+      - ".github/workflows/apply-systematic-debugging-gate-fix.yml"
+      - "scripts/apply_systematic_debugging_gate_fix.py"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@1e60f620b9541d4a7b115a7525ab692c2f10c1bd
+        with:
+          node-version: "24"
+
+      - name: Install validation dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Apply source patch and regenerate manifests
+        run: |
+          python scripts/apply_systematic_debugging_gate_fix.py
+          python scripts/render_manifests.py
+
+      - name: Validate patched repository
+        run: python scripts/bootstrap.py
+
+      - name: Remove one-shot automation and commit
+        shell: bash
+        run: |
+          rm scripts/apply_systematic_debugging_gate_fix.py
+          rm .github/workflows/apply-systematic-debugging-gate-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: require observed reproduction before debugging edits"
+          git push origin HEAD:fix/systematic-debugging-reproduction-gate
