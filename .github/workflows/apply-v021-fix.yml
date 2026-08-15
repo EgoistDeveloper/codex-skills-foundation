@@ -1,0 +1,174 @@
+name: Apply v0.2.1 cross-platform fixes
+
+on:
+  push:
+    branches:
+      - fix/ignore-local-environments
+    paths:
+      - ".github/workflows/apply-v021-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out fix branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.11"
+
+      - name: Install validation dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Apply source and test fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          validator = Path("scripts/validate_repository.py")
+          text = validator.read_text(encoding="utf-8")
+
+          old = 'ALLOWED_OPENAI_INSTALLATION = {"AVAILABLE", "INSTALLED_BY_DEFAULT", "NOT_AVAILABLE"}\n\n\nclass Report:'
+          new = '''ALLOWED_OPENAI_INSTALLATION = {"AVAILABLE", "INSTALLED_BY_DEFAULT", "NOT_AVAILABLE"}
+          EXCLUDED_PATH_PARTS = {
+              ".git",
+              ".venv",
+              "venv",
+              "node_modules",
+              "dist",
+              "__pycache__",
+              ".pytest_cache",
+              ".mypy_cache",
+              ".ruff_cache",
+              ".tox",
+              ".nox",
+          }
+
+
+          class Report:'''
+          if old not in text:
+              raise SystemExit("validator constant insertion point not found")
+          text = text.replace(old, new, 1)
+
+          old = '''def rel(path: Path) -> str:
+              return path.relative_to(ROOT).as_posix()
+
+
+          def load_json'''
+          new = '''def rel(path: Path) -> str:
+              return path.relative_to(ROOT).as_posix()
+
+
+          def is_excluded_path(path: Path) -> bool:
+              try:
+                  parts = path.relative_to(ROOT).parts
+              except ValueError:
+                  return False
+              return any(part in EXCLUDED_PATH_PARTS for part in parts)
+
+
+          def load_json'''
+          if old not in text:
+              raise SystemExit("validator helper insertion point not found")
+          text = text.replace(old, new, 1)
+
+          old = '        if ".git" in path.parts or "dist" in path.parts:\n            continue'
+          new = '        if is_excluded_path(path):\n            continue'
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one markdown exclusion site, found {text.count(old)}")
+          text = text.replace(old, new, 1)
+
+          old = '        if not path.is_file() or ".git" in path.parts or "dist" in path.parts:\n            continue'
+          new = '        if not path.is_file() or is_excluded_path(path):\n            continue'
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one security exclusion site, found {text.count(old)}")
+          text = text.replace(old, new, 1)
+          validator.write_text(text, encoding="utf-8")
+
+          packaging_test = Path("tests/test_packaging.py")
+          text = packaging_test.read_text(encoding="utf-8")
+          text = text.replace("import json\n", "import json\nimport stat\n", 1)
+          old = '''                    self.assertTrue(any(name.endswith("/SKILL.md") for name in names))
+                      self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts for name in names))'''
+          # Preserve the repository's exact indentation rather than trusting YAML block indentation.
+          old = '                    self.assertTrue(any(name.endswith("/SKILL.md") for name in names))\n                    self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts for name in names))'
+          new = '''                    self.assertTrue(any(name.endswith("/SKILL.md") for name in names))
+                      self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts for name in names))'''
+          new = '                    self.assertTrue(any(name.endswith("/SKILL.md") for name in names))\n                    self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts for name in names))\n                    for info in zf.infolist():\n                        self.assertEqual(info.create_system, 3)\n                        mode = info.external_attr >> 16\n                        self.assertEqual(mode & 0o170000, stat.S_IFREG)\n                        self.assertEqual(mode & 0o777, 0o644)'
+          if old not in text:
+              raise SystemExit("packaging test insertion point not found")
+          packaging_test.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          validator_test = Path("tests/test_repository_validator.py")
+          text = validator_test.read_text(encoding="utf-8")
+          marker = '    def test_catalog_matches_five_modular_packages(self) -> None:\n'
+          addition = '''    def test_local_dependency_directories_are_excluded(self) -> None:
+              for relative in (
+                  ".venv/Lib/site-packages/example.py",
+                  "venv/lib/python/site-packages/example.py",
+                  "node_modules/example/index.js",
+                  ".tox/example/lib/site-packages/example.py",
+              ):
+                  self.assertTrue(module.is_excluded_path(ROOT / relative))
+              self.assertFalse(
+                  module.is_excluded_path(
+                      ROOT / "plugins/engineering-foundation-core/skills/task-contract/SKILL.md"
+                  )
+              )
+
+'''
+          if marker not in text:
+              raise SystemExit("validator test insertion point not found")
+          validator_test.write_text(text.replace(marker, addition + marker, 1), encoding="utf-8")
+
+          catalog_path = Path("catalog/plugins.json")
+          catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+          for plugin in catalog["plugins"]:
+              if plugin["version"] != "0.2.0":
+                  raise SystemExit(f"unexpected current version for {plugin['name']}: {plugin['version']}")
+              plugin["version"] = "0.2.1"
+          catalog_path.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+          changelog = Path("CHANGELOG.md")
+          text = changelog.read_text(encoding="utf-8")
+          heading = "# Changelog\n\n"
+          entry = '''## 0.2.1 - 2026-08-15
+
+          ### Cross-platform correctness
+
+          - Excluded local virtual environments and dependency directories from repository-wide link, secret, and placeholder scans.
+          - Added `.venv`, `venv`, `node_modules`, and common tool caches to `.gitignore`.
+          - Replaced operating-system-dependent executable checks with fixed Unix `0644` ZIP metadata.
+          - Added regression tests for local dependency exclusions and cross-platform archive modes.
+
+'''.replace("          ", "")
+          if not text.startswith(heading):
+              raise SystemExit("unexpected changelog heading")
+          changelog.write_text(heading + entry + text[len(heading):], encoding="utf-8")
+          PY
+
+          python scripts/render_manifests.py
+          rm .github/workflows/apply-v021-fix.yml
+
+      - name: Validate patched tree
+        run: python scripts/bootstrap.py
+
+      - name: Commit patched tree
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: make local validation and packaging cross-platform"
+          git push origin HEAD:fix/ignore-local-environments
