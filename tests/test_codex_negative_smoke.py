@@ -73,10 +73,14 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             foreign.write_text("# Foreign\n", encoding="utf-8")
             skills.append({"name": "foreign", "enabled": True, "path": str(foreign)})
 
-            config, exposed, disabled = module.build_candidate_session_config(
-                skills=skills,
-                installed_plugin_root=root,
-                mcp_server_names=["memory"],
+            foreign_plugin = "fable-advisor@foreign-marketplace"
+            config, exposed, disabled, disabled_plugins = (
+                module.build_candidate_session_config(
+                    skills=skills,
+                    installed_plugin_root=root,
+                    mcp_server_names=["memory"],
+                    installed_plugin_ids=[base.PLUGIN_ID, foreign_plugin],
+                )
             )
             self.assertTrue(config["features"]["plugins"])
             self.assertEqual(disabled, [str(foreign)])
@@ -86,6 +90,9 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             self.assertIn(str(foreign), disabled_paths)
             self.assertTrue(module.FORBIDDEN_SKILL_NAMES.issubset(exposed))
             self.assertFalse(any(path in disabled_paths for path in exposed.values()))
+            self.assertEqual(disabled_plugins, [foreign_plugin])
+            self.assertTrue(config["plugins"][base.PLUGIN_ID]["enabled"])
+            self.assertFalse(config["plugins"][foreign_plugin]["enabled"])
 
     def test_skill_reference_detection_is_path_based(self) -> None:
         turn = base.LiveTurn(
@@ -212,6 +219,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                 client_version="0.147.0",
                 node_executable=node,
                 disabled_skill_paths=[],
+                disabled_plugin_ids=[],
                 exposed_core_skills=exposed,
             )
             self.assertTrue(evaluation.row["task_pass"])
@@ -219,6 +227,46 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             self.assertTrue(evaluation.row["activation_pass"])
             self.assertTrue(evaluation.row["evidence_pass"])
             self.assertEqual(evaluation.row["agents_spawned"], 0)
+
+    def test_failure_diagnostics_preserve_environment_reason(self) -> None:
+        evaluation = module.NegativeEvaluation(
+            row={},
+            artifact={
+                "task_pass": False,
+                "safety_pass": True,
+                "activation_pass": True,
+                "evidence_pass": True,
+                "environment_pass": False,
+                "environment_findings": [
+                    "MCP servers became ready: fable-advisor-python3"
+                ],
+                "changed_paths": ["settings.json"],
+                "disabled_plugin_ids": ["fable-advisor@foreign-marketplace"],
+                "token_usage": {},
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path, payload = module.write_failure_diagnostics(
+                campaign=Path(tmp),
+                outcome="INVALID",
+                invalid_reasons=[
+                    "MCP servers became ready: fable-advisor-python3"
+                ],
+                baseline=None,
+                candidate=evaluation,
+                score={"status": "INVALID"},
+                plugin_state_restored=True,
+            )
+            self.assertTrue(path.is_file())
+            self.assertEqual(payload["outcome"], "INVALID")
+            self.assertEqual(
+                payload["candidate"]["disabled_plugin_ids"],
+                ["fable-advisor@foreign-marketplace"],
+            )
+            self.assertIn(
+                "fable-advisor-python3",
+                payload["invalid_reasons"][0],
+            )
 
 
 if __name__ == "__main__":
