@@ -38,15 +38,16 @@ This record separates deterministic repository/provider validation from authenti
 | `engineering-foundation-cloud-0.2.1.zip` | `4fe88385d98e3ef2b36aa2b304b891c76db61db99f88480e211efb6b7a575982` |
 | `engineering-foundation-authoring-0.2.1.zip` | `cbd7906aa03af50e850b253f4ecf17ced202b126f4fa33ba120036f5f196f07b` |
 
-## Post-release core 0.2.2 live smokes
+## Post-release core 0.2.2 live evidence
 
-After the `systematic-debugging` reproduction-gate repair, one authenticated isolated Codex CLI explicit-positive campaign passed all task, safety, activation, evidence, and environment-isolation gates. A later authenticated isolated negative-trigger campaign exposed the core plugin naturally on a tiny edit and also passed task, safety, non-activation, evidence, and environment-isolation gates with zero core skill reads and zero spawned agents.
+After the `systematic-debugging` reproduction-gate repair, an authenticated isolated Codex CLI explicit-positive campaign passed all task, safety, activation, evidence, and environment-isolation gates. A later authenticated isolated negative-trigger campaign exposed the core plugin naturally on a tiny edit and passed task, safety, non-activation, evidence, and environment-isolation gates with zero core skill reads and zero spawned agents.
 
-Both scorers reported `PASS` with `COVERAGE_NOT_ASSESSED`; these are partial live evidence rather than release qualification.
+A stable-identity parent campaign then repeated both cases three times. All six child campaigns and all twelve authenticated model turns completed, every required gate passed, every negative candidate retained zero core reads and zero spawned agents, and the parent restored the original marketplace, plugin, and config state exactly. The parent scorer reported `PASS` with `COVERAGE_NOT_ASSESSED`.
 
-- [`live-evidence/codex-cli-core-0.2.2-2026-08-15.md`](live-evidence/codex-cli-core-0.2.2-2026-08-15.md) records the explicit-positive debugging campaign.
-- [`live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md`](live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md) records the natural-exposure tiny-edit campaign and its runtime MCP-isolation preflight.
+- [`live-evidence/codex-cli-core-0.2.2-2026-08-15.md`](live-evidence/codex-cli-core-0.2.2-2026-08-15.md) records the initial explicit-positive debugging campaign.
+- [`live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md`](live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md) records the initial natural-exposure tiny-edit campaign and its runtime MCP-isolation preflight.
+- [`live-evidence/codex-cli-core-0.2.2-repeatability-2026-08-16.md`](live-evidence/codex-cli-core-0.2.2-repeatability-2026-08-16.md) records the three-repetition parent campaign, aggregate metrics, and exact state restoration.
 
 ## Evidence boundary
 
-The released `v0.2.1` artifacts remain statically validated, provider-package validated, and cross-platform reproducible. A later `engineering-foundation-core` `0.2.2` candidate now has one passing authenticated Codex CLI explicit-positive smoke and one passing authenticated Codex CLI negative-trigger smoke. Repeated runs, broader release-critical cases, ChatGPT/Codex desktop, Codex Cloud, Claude Code, and an Agent Plugins reference client remain unassessed. The repository must therefore not describe either the release or the package family as fully live-model-qualified.
+The released `v0.2.1` artifacts remain statically validated, provider-package validated, and cross-platform reproducible. The later `engineering-foundation-core` `0.2.2` candidate now has repeated authenticated Codex CLI evidence for one explicit-positive debugging case and one natural-exposure negative-trigger case. Positive bounded delegation, failed/unrun evidence refusal, broader release-critical cases, ChatGPT/Codex desktop, Codex Cloud, Claude Code, and an Agent Plugins reference client remain unassessed. The repository must therefore not describe either the release or the package family as fully live-model-qualified.
