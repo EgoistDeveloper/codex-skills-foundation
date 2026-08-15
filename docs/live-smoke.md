@@ -15,7 +15,7 @@ Then the user starts a new Codex thread. They do not run Python tests, JSON-RPC 
 
 ## Maintainer requirements
 
-Both live harnesses require:
+The live harnesses require:
 
 - Python 3.11 or newer;
 - Git;
@@ -24,39 +24,40 @@ Both live harnesses require:
 - an active `codex login` session;
 - no concurrent Codex process changing plugin configuration during a campaign.
 
-Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository. Each command deliberately requires `--confirm-live` because it runs two authenticated model turns and consumes plan usage.
+Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository. Every live command requires `--confirm-live` because it consumes authenticated plan usage and temporarily changes core plugin/marketplace state.
 
 ## Explicit positive debugging smoke
 
 This campaign asks whether one explicitly selected core debugging skill completes a controlled defect safely and with reviewable evidence, compared with an isolated baseline.
 
 ```bash
-python scripts/run_codex_live_smoke.py --confirm-live
+python scripts/run_codex_positive_smoke_isolated.py --confirm-live
 ```
 
-The harness:
+The wrapper first discovers runtime-only MCP registrations, validates a transport-complete name veto without a model turn, disables foreign plugins at app-server startup, and then delegates to the established positive harness.
+
+The measured harness:
 
 1. Creates one deterministic failing Node.js fixture and clones it twice.
 2. Records the current Codex marketplace, core-plugin, and `config.toml` state.
-3. Discovers ambient skills and MCP names for exact per-thread disabling.
-4. Runs an isolated baseline with plugins, apps, memories, configured MCP servers, and discovered user skills disabled.
-5. Installs the local core package temporarily.
-6. Resolves `engineering-foundation-core:systematic-debugging`, then supplies only that structured skill to the candidate.
-7. Uses the same prompt, model, provider, service tier, reasoning effort, and fixture.
-8. Requires marker-backed failure reproduction before editing and marker-backed verification after editing.
-9. Checks the allowed diff, unchanged Git commit, activation, ambient-capability isolation, tool calls, agent count, duration, and detailed token usage.
-10. Runs `scripts/score_eval_runs.py` only when environment isolation passes.
-11. Restores the original plugin, marketplace, and `config.toml` state even when the campaign fails.
+3. Runs an isolated baseline with the core plugin absent.
+4. Installs the local core package temporarily.
+5. Resolves `engineering-foundation-core:systematic-debugging`, then supplies only that structured skill to the candidate.
+6. Uses the same prompt, model, provider, service tier, reasoning effort, and fixture.
+7. Requires marker-backed failure reproduction before editing and marker-backed verification after editing.
+8. Checks the allowed diff, unchanged Git commit, activation, ambient-capability isolation, tool calls, agent count, duration, and detailed token usage.
+9. Runs `scripts/score_eval_runs.py` only when environment isolation passes.
+10. Restores the original plugin, marketplace, and `config.toml` state even when the campaign fails.
 
 ## Negative tiny-edit smoke
 
 This campaign asks the opposite question: when the core plugin is naturally exposed to a one-literal configuration edit, do heavyweight planning and orchestration remain dormant?
 
 ```bash
-python scripts/run_codex_negative_smoke.py --confirm-live
+python scripts/run_codex_negative_smoke_v4.py --confirm-live
 ```
 
-The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign installed plugins, API-curated or otherwise effective installed plugins discovered through app-server, and directly configured MCP servers are disabled before the measured candidate app-server starts and again at the thread layer; plugin-provided MCP servers from hidden effective plugins are explicitly disabled as defense in depth. The remote plugin catalog, foreign user skills, apps, memories, and code mode remain disabled.
+The file name is retained for compatibility; the machine-readable case revision is authoritative. The current launcher performs two model-free runtime MCP preflights and uses transport-complete startup vetoes before either authenticated model turn begins.
 
 The negative campaign passes only when:
 
@@ -70,43 +71,90 @@ The negative campaign passes only when:
 
 Other lightweight core skills are not automatically treated as forbidden. The case contract specifically tests that durable planning and multi-agent orchestration do not appear for a tiny edit.
 
+## Core repeatability campaign
+
+One passing sample does not establish stable behavior. The repeatability runner executes both isolated cases under one harness, client, model, and subject identity:
+
+```bash
+python scripts/run_codex_core_repeatability.py --confirm-live --repetitions 3
+```
+
+Three repetitions per case create six child campaigns and twelve authenticated model turns. The order alternates by repetition to reduce fixed ordering bias. The runner:
+
+- requires a clean foundation working tree;
+- creates an exclusive campaign lock;
+- checkpoints after every restored PASS child;
+- stops on the first non-PASS, failed restoration, identity drift, or malformed evidence packet;
+- rewrites child rows into one parent campaign with contiguous repetition numbers;
+- verifies model, client, harness, subject version, and subject commit stability;
+- invokes `score_eval_runs.py --min-repetitions 3` only after all children pass;
+- reports pass rates plus median token, uncached-input, tool-call, agent, and duration metrics;
+- writes `manifest.json`, `runs.jsonl`, `summary.json`, `score.json`, `report.md`, transcripts, and automatic failure diagnostics.
+
+Preview the exact order and turn count without changing Codex state:
+
+```bash
+python scripts/run_codex_core_repeatability.py --dry-run --repetitions 3
+```
+
+An interrupted campaign can be resumed only under the same repository HEAD:
+
+```bash
+python scripts/run_codex_core_repeatability.py \
+  --confirm-live \
+  --repetitions 3 \
+  --resume .eval-runs/codex-core-repeatability/<campaign>
+```
+
+A finalized FAIL, INVALID, or harness-error campaign is not resumable. Start a new campaign after repairing the cause so results from different harness identities are not mixed.
+
 ## Validity controls
 
-The harnesses treat environment isolation as a hard precondition, not a decorative checkbox:
+The harnesses treat environment isolation as a hard precondition:
 
 - fixtures use Node.js, already required by the npm Codex launcher;
 - runners print explicit started, pass, and fail markers on stdout;
-- a shell command returning zero after a failed verification cannot become false-positive evidence;
-- an unmeasured app-server inventory phase calls `plugin/installed` and `plugin/read` so API-curated or otherwise hidden effective plugins and their MCP server names are known before the measured candidate starts;
-- app-server startup overrides disable the remote plugin catalog, every foreign effective plugin, every discovered plugin-provided MCP server, and every directly configured MCP server before capabilities are loaded;
-- discovered foreign skill paths are also disabled through per-thread config;
-- apps, memories, JavaScript REPL, and configured MCP servers are disabled;
-- any ready MCP server, foreign skill-file read, or Codex-memory read marks a campaign `INVALID` and skips scoring;
-- `summary.json` is written for PASS, FAIL, INVALID, and harness-error outcomes; every non-PASS result also prints compact reasons and writes `failure-diagnostics.json`.
+- shell chaining cannot turn a failed verification into false-positive evidence;
+- an unmeasured app-server inventory phase discovers effective plugins;
+- a model-free runtime phase discovers compatibility and extension MCP registrations;
+- transport-complete disabled rows preserve those names as startup vetoes;
+- a second model-free thread verifies that vetoed names expose no tools;
+- top-level thread MCP rows are omitted so they cannot replace valid startup transports;
+- discovered foreign skill paths are disabled;
+- apps, memories, JavaScript REPL, foreign plugins, and remote plugin catalogs are disabled;
+- any ready MCP server, foreign skill-file read, or Codex-memory read marks a measured campaign invalid and skips scoring;
+- `summary.json` is written for PASS, FAIL, INVALID, and harness-error outcomes; every non-PASS result also writes diagnostics.
 
-The harnesses use the same authenticated Codex home for both variants. Authentication files are never copied, parsed, printed, or moved.
+Authentication files are never copied, parsed, printed, or moved.
 
 ## Artifacts
 
-Each campaign contains variant traces, diffs, final messages, verification output, machine-readable artifacts, scorer output, and a summary. Positive campaigns are written below:
+Positive campaigns:
 
 ```text
 .eval-runs/codex-live-smoke/<campaign>/
 ```
 
-Negative-trigger campaigns are written below:
+Negative-trigger campaigns:
 
 ```text
 .eval-runs/codex-negative-smoke/<campaign>/
+```
+
+Repeatability campaigns:
+
+```text
+.eval-runs/codex-core-repeatability/<campaign>/
 ```
 
 Review `trace.jsonl` before sharing it because model traces and repository content can contain local paths or environment metadata. The bundled fixtures themselves contain no secrets.
 
 ## Result meanings
 
-- `PASS`: one isolated candidate repetition cleared the relevant behavior and scorer gates.
+- `PASS`: the measured campaign cleared its behavior and scorer gates.
 - `FAIL`: the environment was valid, but behavior or regression gates failed.
-- `INVALID`: ambient skills, MCPs, memory, or other capabilities contaminated the comparison; the scorer was not run.
+- `INVALID`: ambient capabilities contaminated the comparison; the scorer was not run.
 - `HARNESS_ERROR`: the harness or runtime failed before a trustworthy comparison completed.
+- repeatability `PASS`: every requested child passed under one stable identity and the combined minimum-repetition scorer passed.
 
-A passing smoke does **not** mean every model or client is qualified. Full qualification still requires repeated baseline, previous-release, and candidate runs across the matrix in [`qualification.md`](qualification.md). One green run is evidence, not a tiny coronation ceremony.
+A passing repeatability campaign covers only the included Codex CLI cases. Full qualification still requires the remaining case, package, and client matrix in [`qualification.md`](qualification.md).
