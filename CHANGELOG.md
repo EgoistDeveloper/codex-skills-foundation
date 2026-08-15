@@ -25,6 +25,7 @@
 - Applied the validated runtime MCP and foreign-plugin isolation policy to the explicit-positive debugging smoke.
 - Added a checkpointed, fail-fast core repeatability runner that alternates positive and negative cases, enforces stable model/client/subject identity, resumes interrupted campaigns under the same HEAD, and scores combined minimum-repetition evidence.
 - Deferred positive isolation evidence until the base campaign layout exists, preventing the wrapper from pre-creating and then colliding with its `preflight` directory.
+- Recorded a complete three-repetition core campaign: all six positive/negative child campaigns and twelve authenticated turns passed, negative candidates retained zero core reads and zero agents, and the parent restored exact marketplace, plugin, and config state.
 
 ## 0.2.1 - 2026-08-15
 
