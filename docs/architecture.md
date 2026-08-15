@@ -1,44 +1,67 @@
 # Architecture
 
-## Principles
+## Package model
 
-1. **Portable workflow, separate adapters.** Agent Skills contain behavior. Agent Plugins `plugin.json`, Codex `.codex-plugin/plugin.json`, and Claude `.claude-plugin/plugin.json` remain distinct validated outputs.
-2. **Progressive disclosure.** Keep discovery metadata narrow and skill bodies concise; load focused references only when needed.
-3. **Modular installation.** Core, Laravel, and design are separate packages so irrelevant skills do not consume discovery budget or trigger accidentally.
-4. **Single-agent default.** Delegation is a bounded optimization for separable work, not the default lifecycle.
-5. **Evidence over status language.** Goal trackers, checklists, and model confidence never replace commands, artifacts, and diff inspection.
-6. **Static and behavioral validation are separate.** A parser unit test cannot prove a model follows a skill.
-7. **No ambient authority.** The package ships no MCP, hook, global installer, credential, or network dependency.
-8. **Generated metadata, authored behavior.** Provider manifests are generated from one catalog; skill behavior is reviewed as source, not emitted from an opaque generator.
+The repository publishes five independent packages:
 
-## Core versus optional custom agents
+| Package | Default | Responsibility |
+|---|---:|---|
+| `engineering-foundation-core` | yes | task contract, planning, orchestration, implementation, debugging, current-source research, review, verification, handoff |
+| `engineering-foundation-laravel` | Laravel/PHP only | repository-aware framework, database, authorization, queue, route, and test guidance |
+| `engineering-foundation-design` | UI work only | one design direction and rendered visual verification |
+| `engineering-foundation-cloud` | remote-agent work only | Codex Cloud and remote environment setup, cache, network, and secret boundaries |
+| `engineering-foundation-authoring` | maintainers only | skill and plugin authoring, provenance, validation, and eval design |
 
-The core `bounded-orchestration` skill uses host-native subagents and does not require permanent custom roles. Provider-specific agent formats are adapters and may not exist on every desktop, cloud, CLI, or API surface.
+The split is behavioral, not decorative. Skill names and descriptions participate in discovery before bodies load, so installing unrelated domains increases context cost and accidental activation risk.
 
-The repository nevertheless supplies three **optional project-scoped** profiles for repeated read-only work:
+## Distribution layers
+
+Each package contains three deliberately separate manifests:
+
+- `plugin.json`: portable Agent Plugins 1.0.0 metadata;
+- `.codex-plugin/plugin.json`: Codex/OpenAI presentation and discovery metadata;
+- `.claude-plugin/plugin.json`: Claude Code metadata;
+- `skills/`: provider-neutral behavior;
+- `skills/*/agents/openai.yaml`: Codex-facing skill presentation metadata.
+
+Shared metadata is authored once in `catalog/plugins.json` and rendered by `scripts/render_manifests.py`. Provider schemas and runtime behavior are not falsely collapsed into one manifest.
+
+## Runtime principles
+
+1. **Progressive disclosure.** Discovery metadata is narrow; long checklists and templates live under `references/` or `assets/`.
+2. **Single-agent default.** Delegation is an optimization for separable work, not a quality badge.
+3. **One writer per file.** The parent owns integration, the final diff, and the only completion claim.
+4. **Evidence over confidence.** Goal trackers and model statements never replace current commands, runtime observations, artifacts, and diff inspection.
+5. **Stop after proof.** A task reopens only for failed evidence, unmet acceptance, changed requirements, or a concrete regression/security finding.
+6. **No ambient authority.** Default packages ship no MCP server, hook, telemetry, credential bridge, network client, global installer, or destructive automation.
+7. **Static and live evidence are different.** Parser tests prove parsers; they do not prove probabilistic agent behavior.
+
+## State model
+
+```text
+INTAKE -> CONTRACT -> [PLAN] -> [DELEGATE] -> IMPLEMENT / DIAGNOSE
+       -> VERIFY -> [REVIEW] -> COMPLETE -> [HANDOFF]
+```
+
+Bracketed transitions are conditional. A required `FAIL`, `NOT_RUN`, or omitted acceptance item prevents `COMPLETE`.
+
+## Optional custom agents
+
+Portable orchestration works with host-native subagents and does not depend on permanent roles. Three optional project-scoped adapters are provided for repeated read-only work:
 
 - explorer;
 - diff reviewer;
 - completion-evidence auditor.
 
-They are model-neutral, installed only through an explicit dry-run-first script, and deliberately exclude an implementer. The parent or host-native worker owns edits and integration. This keeps the portable contract independent from a provider format while still giving qualified local clients reusable specialist roles.
+They pin no model, deny editing, prohibit nested delegation, and deliberately exclude an implementer. Provider-specific agent formats remain an adapter qualification surface, not part of the portable Agent Skills contract.
 
-## State model
+## Sources of truth
 
-```text
-INTAKE -> CONTRACT -> [PLAN] -> [DELEGATE] -> IMPLEMENT/DIAGNOSE
-       -> VERIFY -> [REVIEW] -> COMPLETE -> [HANDOFF]
-```
-
-Transitions in brackets are conditional. `COMPLETE` reopens only for failed evidence, unmet acceptance, changed requirements, or a material regression/security finding. A required `NOT_RUN` keeps the state `PARTIAL`; disclosure alone does not magically turn absence into proof.
-
-## Source of truth
-
-- `catalog/plugins.json`: shared package metadata.
-- generated provider manifests: distribution adapters.
-- portable `skills/*/SKILL.md`: behavior contract.
-- `AGENTS.md`: repository-development contract.
-- `profiles/`: optional provider-specific project agent adapters.
-- `docs/exec-plans/`: durable plans for long work.
-- task contract + completion evidence: acceptance traceability.
-- eval run records + artifacts: behavioral qualification evidence.
+- `catalog/plugins.json`: package metadata;
+- generated manifests: provider distribution adapters;
+- `plugins/*/skills/*/SKILL.md`: portable behavior;
+- `AGENTS.md`: repository development contract;
+- `schemas/`: task, evidence, handoff, and eval contracts;
+- `profiles/`: optional provider-specific project agents;
+- `docs/exec-plans/`: durable plans for long work;
+- eval JSONL plus artifacts: live behavior evidence.

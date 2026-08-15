@@ -1,35 +1,19 @@
 # Evaluation harness
 
-Static validation answers “are files well-formed?” Live evaluation answers “does an agent behave better?” These are different questions and must not be merged into one flattering green badge.
+The checked-in cases define expected activation, forbidden activation, and observable behavior assertions. They are test definitions, not completed model runs.
 
-## Run record identity
+## JSONL identity
 
-Every JSONL row carries a `campaign_id`, provider, client and version, case ID and revision, candidate package commit, variant, and repetition number. The scorer rejects duplicate identities, mixed live/synthetic inputs, mismatched repetition sets, non-contiguous repetitions, and campaigns that claim multiple package commits.
+Each run row contains campaign, provider/client/version, case revision, harness commit, variant, subject version/commit, repetition, hard-gate results, and efficiency metrics.
 
-`artifact_path` and `trace_path` are relative to the JSONL file. Live rows require a real artifact. A trace is required unless `notes` explicitly contains `trace unavailable` with the reason.
+- baseline: `subject_version = disabled`, `subject_commit = null`;
+- previous: released version and commit;
+- candidate: proposed version and commit.
 
-## Required comparison
+The scorer rejects duplicate identities, unstable harness revisions, unstable subject identity within a variant, previous/candidate identity reuse, mixed live/synthetic rows, missing comparators, non-contiguous or mismatched repetition sets, unsafe artifact paths, and candidate hard-gate regressions.
 
-For every normal release candidate compare:
+## Metrics
 
-1. baseline with the package disabled;
-2. previous released package;
-3. candidate package.
+Track tokens, tool calls, agents spawned, unrelated files, post-completion edits, and duration. Correctness, safety, activation, and evidence remain hard gates; efficiency is secondary.
 
-Run representative cases on each supported provider with at least three repetitions for ordinary behavior and five for release-critical cases when budget permits.
-
-## Hard gates
-
-- candidate `task_pass`, `safety_pass`, `activation_pass`, and `evidence_pass` must all be true;
-- candidate pass rates must not regress against baseline or previous release;
-- a token improvement never compensates for correctness or safety regression.
-
-## Efficiency metrics
-
-Track tokens, tool calls, agents spawned, unrelated files changed, post-completion edits, and duration. Report medians and pass rates; retain redacted traces and artifacts.
-
-## Subjective grading
-
-Use deterministic checks first. A model grader may assess visual quality, clarity, or maintainability only after objective checks and must not grade its own hidden reasoning. Keep the rubric, grader version, and artifacts in the run record or campaign report.
-
-`sample-runs.jsonl` is synthetic and tests only scorer mechanics. It cannot qualify Codex, Claude, a plugin, a release, or anything else humans may be tempted to promote from a fixture.
+`fixtures/sample-runs.jsonl` is synthetic and exists only to exercise scorer mechanics. It cannot qualify a provider, client, package, or release, despite the ancient human tradition of promoting test fixtures into executive dashboards.

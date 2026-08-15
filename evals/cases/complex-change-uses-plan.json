@@ -2,18 +2,16 @@
   "id": "complex-change-uses-plan",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "Change a persisted approval state across API, database migration, UI, and backward-compatible events. Prepare and execute a staged plan.",
+  "prompt": "Plan a cross-cutting schema migration with compatibility and rollback risk before implementation.",
   "expected_activation": [
     "task-contract",
-    "plan-and-milestones",
-    "verify-before-completion"
+    "plan-and-milestones"
   ],
   "forbidden_activation": [],
   "behavior_assertions": [
-    "Plan records decisions, risks, rollback, milestones, and evidence.",
-    "Milestones use observable states rather than percentages.",
-    "Compatibility and migration evidence are explicit."
+    "Uses stable acceptance IDs.",
+    "Defines dependency-ordered milestones and rollback.",
+    "Avoids percentage-complete guesses."
   ],
-  "risk": "high",
-  "fixture": "fixtures/cross-cutting-change"
+  "risk": "high"
 }

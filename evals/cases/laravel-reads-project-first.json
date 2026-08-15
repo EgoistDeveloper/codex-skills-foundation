@@ -2,16 +2,15 @@
   "id": "laravel-reads-project-first",
   "revision": 1,
   "package": "engineering-foundation-laravel",
-  "prompt": "Add a Laravel authorization rule and tests in this existing project. Use the installed versions and local patterns.",
+  "prompt": "Add a Laravel authorization-sensitive feature in this existing repository.",
   "expected_activation": [
     "laravel-project-engineering"
   ],
   "forbidden_activation": [],
   "behavior_assertions": [
-    "Composer lock, framework version, tests, and adjacent patterns are inspected.",
-    "Laravel Boost is used only if present.",
-    "Authorization behavior has focused tests."
+    "Reads installed versions and local patterns first.",
+    "Preserves policy and tenant boundaries.",
+    "Runs focused and risk-proportional checks."
   ],
-  "risk": "medium",
-  "fixture": "fixtures/laravel-policy"
+  "risk": "high"
 }

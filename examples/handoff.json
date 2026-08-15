@@ -1,37 +1,50 @@
 {
-  "objective": "Qualify engineering-foundation-core on Codex and Claude.",
-  "acceptance": [
-    "All release-critical cases pass hard gates on both providers."
-  ],
-  "repository_state": {
-    "branch": "example/qualification-v0.2.0",
-    "commit": "NOT_RECORDED",
-    "working_tree": "unknown"
-  },
-  "decisions": [
-    "Use three packages to reduce discovery context.",
-    "Keep hooks and MCP absent in v0.2.0."
-  ],
-  "completed": [
-    "Static validation and unit tests pass."
-  ],
-  "evidence": [
+  "task_id": "static-validation",
+  "objective": "Repository static validation finishes with no errors or warnings.",
+  "acceptance_status": [
     {
-      "check": "static",
-      "status": "PASS",
-      "artifact": "examples/completion-evidence.pass.json"
+      "id": "A1",
+      "status": "PASS"
     },
     {
-      "check": "live",
-      "status": "NOT_RUN",
-      "artifact": ""
+      "id": "A2",
+      "status": "PASS"
     }
   ],
-  "unresolved_risks": [
-    "Provider behavior has not been measured."
+  "non_goals": [
+    "Live Codex or Claude behavior qualification."
   ],
-  "next_action": "Run each release-critical eval case three times with the core plugin enabled and disabled.",
+  "constraints": [
+    "Evidence must come from the current workspace."
+  ],
+  "repository_state": {
+    "repository": "EgoistDeveloper/codex-skills-foundation",
+    "branch": "example",
+    "baseline_sha": "0000000",
+    "head_sha": "0123456789abcdef",
+    "working_tree": "clean"
+  },
+  "decisions": [
+    "Static and live behavior qualification remain separate."
+  ],
+  "completed_work": [
+    "Validated manifests, schemas, tests, and packages."
+  ],
+  "checks": [
+    {
+      "command": "python scripts/bootstrap.py",
+      "status": "PASS",
+      "summary": "All deterministic checks passed."
+    }
+  ],
+  "remaining_risks": [
+    "No live provider run is represented by this example."
+  ],
+  "next_atomic_action": "Run provider-specific live qualification when releasing on a new client version.",
+  "resume_commands": [
+    "python scripts/bootstrap.py"
+  ],
   "provenance": [
-    "docs/upstream-adoption-matrix.md"
+    "Repository documentation and checked-in schemas."
   ]
 }

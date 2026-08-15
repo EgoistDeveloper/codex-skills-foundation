@@ -38,7 +38,7 @@ class ManifestTests(unittest.TestCase):
         data = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
         for entry in data["plugins"]:
             self.assertIn(entry["policy"]["installation"], {"AVAILABLE", "INSTALLED_BY_DEFAULT", "NOT_AVAILABLE"})
-            self.assertIn(entry["policy"]["authentication"], {"ON_INSTALL", "ON_FIRST_USE"})
+            self.assertIn(entry["policy"]["authentication"], {"ON_INSTALL", "ON_USE"})
             self.assertTrue(entry["category"])
 
     def test_publisher_metadata_has_no_placeholder_contact(self) -> None:

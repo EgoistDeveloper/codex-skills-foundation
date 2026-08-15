@@ -2,16 +2,14 @@
   "id": "visual-qa-renders-states",
   "revision": 1,
   "package": "engineering-foundation-design",
-  "prompt": "Verify the implemented page visually and accessibly at phone, tablet, and desktop widths, including errors and long Turkish content.",
+  "prompt": "Verify the completed UI across responsive states and accessibility behavior.",
   "expected_activation": [
     "visual-verification"
   ],
   "forbidden_activation": [],
   "behavior_assertions": [
-    "Rendered screenshots and runtime inspection are used.",
-    "Keyboard/focus, overflow, localized content, and error states are checked.",
-    "Findings identify viewport, state, expected, observed, and evidence."
+    "Inspects rendered viewports and critical states.",
+    "Checks keyboard, focus, overflow, console, and network behavior."
   ],
-  "risk": "medium",
-  "fixture": "fixtures/visual-qa"
+  "risk": "medium"
 }

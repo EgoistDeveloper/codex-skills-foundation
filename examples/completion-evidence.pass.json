@@ -1,20 +1,43 @@
 {
-  "task_id": "example-static-validation",
+  "task_id": "static-validation",
   "completion_status": "COMPLETE",
+  "workspace": {
+    "repository": "EgoistDeveloper/codex-skills-foundation",
+    "branch": "example",
+    "head_sha": "0123456789abcdef",
+    "working_tree_reviewed": true
+  },
   "items": [
     {
-      "criterion": "Repository validator passes",
+      "criterion_id": "A1",
       "status": "PASS",
-      "evidence": "python scripts/validate_repository.py --strict exited 0"
+      "summary": "Generated manifests match the catalog.",
+      "evidence": [
+        {
+          "type": "command",
+          "summary": "Manifest drift check passed.",
+          "command": "python scripts/render_manifests.py --check",
+          "fresh": true,
+          "exit_code": 0
+        }
+      ]
     },
     {
-      "criterion": "Unit tests pass",
+      "criterion_id": "A2",
       "status": "PASS",
-      "evidence": "python -m unittest discover -s tests -v exited 0"
+      "summary": "Strict validation and unit tests passed.",
+      "evidence": [
+        {
+          "type": "command",
+          "summary": "Bootstrap completed successfully.",
+          "command": "python scripts/bootstrap.py",
+          "fresh": true,
+          "exit_code": 0
+        }
+      ]
     }
   ],
-  "working_tree_reviewed": true,
   "remaining_risks": [
-    "Live provider qualification is outside this static-validation task contract."
+    "Static validation does not prove live model behavior."
   ]
 }

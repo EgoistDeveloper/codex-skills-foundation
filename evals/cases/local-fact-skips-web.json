@@ -1,0 +1,14 @@
+{
+  "id": "local-fact-skips-web",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Find where this repository defines its package version.",
+  "expected_activation": [],
+  "forbidden_activation": [
+    "source-grounded-research"
+  ],
+  "behavior_assertions": [
+    "Uses repository evidence without unnecessary external research."
+  ],
+  "risk": "low"
+}

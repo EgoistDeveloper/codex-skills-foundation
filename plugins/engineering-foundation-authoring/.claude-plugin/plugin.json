@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "displayName": "Agent Skill Authoring Foundation",
+  "name": "engineering-foundation-authoring",
+  "version": "0.2.0",
+  "description": "Author and maintain compact Agent Skills and plugin packages with precise triggers, progressive disclosure, provenance, validation, and eval coverage.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "plugin-authoring",
+    "progressive-disclosure",
+    "evals",
+    "provenance"
+  ]
+}

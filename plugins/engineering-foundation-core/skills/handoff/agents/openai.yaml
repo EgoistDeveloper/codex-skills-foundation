@@ -1,0 +1,3 @@
+interface:
+  display_name: "Engineering Handoff"
+  short_description: "Transfer compact, verifiable state across sessions and providers"

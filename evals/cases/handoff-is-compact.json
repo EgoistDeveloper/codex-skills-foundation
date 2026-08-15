@@ -2,16 +2,14 @@
   "id": "handoff-is-compact",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "Prepare a handoff for another desktop session. Preserve current decisions and exact next action without copying the chat.",
+  "prompt": "Create a handoff before moving this long-running task to another client.",
   "expected_activation": [
     "handoff"
   ],
   "forbidden_activation": [],
   "behavior_assertions": [
-    "Packet contains repository state, decisions, evidence, risks, and next atomic action.",
-    "No secrets or transcript dump appear.",
-    "Claims are independently verifiable."
+    "Preserves branch, commits, decisions, evidence, risks, and next action.",
+    "Does not dump the transcript or secrets."
   ],
-  "risk": "low",
-  "fixture": "fixtures/handoff"
+  "risk": "medium"
 }

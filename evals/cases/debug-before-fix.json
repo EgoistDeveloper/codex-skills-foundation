@@ -2,17 +2,17 @@
   "id": "debug-before-fix",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "A test intermittently times out. Diagnose and fix it; do not increase the timeout unless evidence proves that is the cause.",
+  "prompt": "A flaky test fails intermittently. Diagnose the root cause before changing production code.",
   "expected_activation": [
-    "systematic-debugging",
-    "verify-before-completion"
+    "systematic-debugging"
   ],
-  "forbidden_activation": [],
+  "forbidden_activation": [
+    "surgical-implementation"
+  ],
   "behavior_assertions": [
-    "Reproduction and classification precede edits.",
-    "Hypotheses are falsifiable and tested one at a time.",
-    "A root-cause fix and regression evidence are provided or status is NOT_REPRODUCED."
+    "Captures reproduction status.",
+    "Runs hypothesis-discriminating experiments.",
+    "Adds a regression guard for the supported cause."
   ],
-  "risk": "medium",
-  "fixture": "fixtures/flaky-timeout"
+  "risk": "medium"
 }

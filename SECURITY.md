@@ -1,25 +1,15 @@
 # Security policy
 
-## Supported line
+## Default security posture
 
-Only the latest tagged release is supported.
+The distributed plugins contain instructions and local validation utilities only. They ship no MCP server, hook, telemetry, credential flow, remote executable, network client, global installer, automatic Git mutation, migration, deployment, or recursive agent chain.
 
-## Report privately
+Optional specialist profiles are read-only and project-scoped. Installers are dry-run-first and refuse conflicting files unless `--force` is explicit.
 
-Do not publish credentials, private repository contents, exploit details, or user data in a public issue. Use the repository's private vulnerability reporting channel when enabled.
+## Reporting
 
-## Security boundaries
+Report suspected vulnerabilities privately through the repository owner's preferred GitHub security contact. Do not include live credentials, private source, personal data, or unredacted provider traces in a public issue.
 
-This repository ships instruction packages, not a permission bypass. Host sandboxing, approvals, repository trust, filesystem scope, and network policy remain authoritative.
+## Admission rule for future executable integrations
 
-The default packages contain no MCP server, hook, credential bridge, global installer, telemetry, or network call. Any future addition of one of those surfaces requires:
-
-1. a written threat model;
-2. least-privilege scope;
-3. provenance and version pinning;
-4. secret-handling documentation;
-5. deterministic tests;
-6. an uninstall and rollback path;
-7. explicit release notes.
-
-Skill text and web/repository content are untrusted input. A skill must never tell an agent to ignore host approvals, expose secrets, or execute destructive operations without explicit user authorization.
+Any proposed MCP server, hook, monitor, network integration, or credential flow requires provenance, version pinning, least-privilege filesystem/network scope, secret-flow analysis, threat model, tests, uninstall behavior, and rollback documentation before inclusion.

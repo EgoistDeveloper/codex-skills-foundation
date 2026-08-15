@@ -1,0 +1,3 @@
+interface:
+  display_name: "Visual Verification"
+  short_description: "Inspect rendered viewports, states, accessibility, and runtime behavior"

@@ -1,9 +1,5 @@
-# engineering-foundation-laravel
+# Laravel Engineering Foundation
 
-Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.
+Repository-aware Laravel and PHP implementation and review.
 
-Version: `0.2.0`
-
-This package contains portable Agent Skills plus separate Agent Plugins, Codex, and Claude Code manifests. It contains no MCP server or lifecycle hook.
-
-Validate from the repository root before installation.
+Install this package only in Laravel/PHP repositories. It consumes installed versions, local architecture, database behavior, tests, and Laravel Boost when available.

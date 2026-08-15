@@ -11,7 +11,9 @@
     "provider",
     "client",
     "client_version",
-    "package_commit",
+    "harness_commit",
+    "subject_version",
+    "subject_commit",
     "repetition",
     "synthetic",
     "task_pass",
@@ -56,9 +58,19 @@
       "type": "string",
       "minLength": 1
     },
-    "package_commit": {
+    "harness_commit": {
       "type": "string",
       "minLength": 1
+    },
+    "subject_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "repetition": {
       "type": "integer",

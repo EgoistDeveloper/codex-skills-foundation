@@ -2,27 +2,29 @@
 
 ## Threats
 
-- prompt injection in repository, issue, web, or documentation content;
+- prompt injection in repositories, issues, web pages, or documentation;
 - plugin path traversal or symlink escape;
-- malicious or over-privileged MCP servers;
-- hooks executing unexpected commands;
-- credentials embedded in manifests, environment fields, logs, or handoffs;
+- malicious or over-privileged MCP servers and hooks;
+- credentials in manifests, environment fields, logs, evals, or handoffs;
 - automatic destructive actions;
-- dependency or GitHub Action supply-chain drift;
-- a reviewer/verifier mutating the work it is supposed to judge.
+- dependency and GitHub Action supply-chain drift;
+- reviewers or verifiers mutating the work they judge;
+- stale evidence presented as current.
 
-## Controls
+## Default controls
 
-- Agent Plugins paths stay within plugin root.
-- No MCP or hooks ship in the default candidate.
-- Portable skills do not grant `allowed-tools`.
+- Package archives reject symlinks, absolute paths, and parent traversal.
+- No MCP, hook, telemetry, credential bridge, or network client ships by default.
+- Portable skills contain no pre-approved tool grants.
 - Host sandbox and approvals remain authoritative.
-- Reviewer and verifier are report-only by default.
-- External research records provenance and date.
-- CI actions are pinned to a full commit SHA.
+- Optional reviewer/auditor profiles are project-scoped, read-only, model-neutral, and deny nested delegation.
+- External research records date and provenance and treats fetched content as untrusted data.
+- GitHub Actions are pinned to full commit SHAs.
 - Generated manifests are checked for drift.
-- Handoffs exclude secrets and raw logs.
+- Evidence records task/workspace identity and fresh command exit codes.
+- Handoffs exclude secrets, personal data, raw logs, and unsupported claims.
+- CI scans for common credential patterns and unfinished placeholder markers.
 
-## MCP admission gate
+## MCP or hook admission gate
 
-A future MCP server requires owner/provenance, pinned version, transport and auth model, minimum filesystem/network scope, command-execution analysis, secret flow, data retention, threat model, tests, and uninstall/rollback. Reference servers are not automatically production-safe.
+A future executable integration requires explicit owner/provenance, immutable version, transport and authentication model, least-privilege filesystem/network scope, command-execution analysis, secret flow, data retention, prompt-injection analysis, tests, uninstall behavior, and rollback. “Reference implementation” is not a synonym for “safe in production,” a distinction software history keeps explaining with impressive patience.

@@ -1,74 +1,57 @@
-# Codex Skills Foundation v0.2 Aday Sürüm
+# Codex Skills Foundation
 
-Bu paket; Codex, ChatGPT, Claude Code ve açık Agent Skills / Agent Plugins biçimlerini kullanan istemciler için yalın, kanıt odaklı bir mühendislik temelidir.
+Codex, ChatGPT, Codex Cloud, Claude Code ve Agent Skills / Agent Plugins uyumlu istemciler için modüler, kanıta dayalı ve token-bilinçli mühendislik foundation'ı.
 
-Bu çalışma **Pull Request #1'e uygulanmış ve doğrulanmış bir yama değildir**. İlgili PR bu ortamdan okunamadığı için temiz odada hazırlanmış bir karşılaştırma adayıdır. Gerçek dalla dosya ve davranış bazında karşılaştırılmadan merge edilmemelidir. Aynı dosya adına sahip olmak, aynı işi doğru yapmak anlamına gelmiyor. İnsanlar klasör isimlerine gereğinden fazla güveniyor. 🫠
+## Hangi paket kurulmalı?
 
-## Paket modeli
+| Paket | Kullanım |
+|---|---|
+| `engineering-foundation-core` | Her yazılım projesinde |
+| `engineering-foundation-laravel` | Yalnız Laravel/PHP projelerinde |
+| `engineering-foundation-design` | Arayüz üretimi, redesign ve visual QA işlerinde |
+| `engineering-foundation-cloud` | Codex Cloud veya başka remote-agent ortamlarında |
+| `engineering-foundation-authoring` | Skill/plugin üretirken veya bakım yaparken |
 
-| Paket | Varsayılan mı? | Amaç |
-|---|---:|---|
-| `engineering-foundation-core` | Evet | Görev sözleşmesi, plan, sınırlı orkestrasyon, uygulama, debugging, review, verification ve handoff |
-| `engineering-foundation-laravel` | Yalnız Laravel/PHP | Projenin gerçek sürümlerine ve kalıplarına göre Laravel çalışma disiplini; Boost varsa güncel bağlam kaynağı |
-| `engineering-foundation-design` | Yalnız UI/tasarım | Tek tasarım yönü, tipografi/token sözleşmesi, gerçek durumlar ve görsel doğrulama |
+Core; task contract, plan/milestone, sınırlı delegasyon, küçük ve doğru diff, sistematik debugging, güncel kaynak araştırması, review, doğrulama ve handoff davranışlarını içerir. Diğer paketler yalnız gerektiğinde kurulur. Böylece backend düzeltmesinde tasarım manifestosu, normal projede Cloud setup talimatı taşınmaz. İnsanlar her şeyi tek çekmeceye koymayı sever; agent context'i bu geleneğe katılmak zorunda değil.
 
-Skill adları ve açıklamaları, skill gövdesi yüklenmeden önce keşif bağlamına girebilir. Bu yüzden bütün yetenekleri tek pakete doldurmak token ekonomisi değil, dijital erzak istifçiliğidir.
-
-## Manifest katmanları
-
-Her plugin üç ayrı hedef taşır:
-
-- `plugin.json`: Agent Plugins 1.0.0 taşınabilir manifesti;
-- `.codex-plugin/plugin.json`: OpenAI ChatGPT/Codex adaptörü;
-- `.claude-plugin/plugin.json`: Claude Code adaptörü.
-
-Ortak metadata `catalog/plugins.json` dosyasından üretilir. Provider şemaları ve runtime davranışları aynı olmadığı için adaptörler tek JSON'muş gibi davranmaz.
-
-## Gereksinim ve doğrulama
-
-Normal bootstrap üçüncü taraf Python paketi istemez; Python 3.11 veya daha yeni sürüm gerekir.
+## Yerel doğrulama
 
 ```powershell
-./scripts/bootstrap.ps1
+python -m pip install -r requirements-dev.txt
+python scripts/bootstrap.py
 ```
 
-veya:
+Bootstrap şunları birlikte çalıştırır:
 
-```bash
-./scripts/bootstrap.sh
+- generated manifest drift;
+- strict repository validator;
+- JSON Schema ve gerçek YAML parsing;
+- Markdown link, secret ve placeholder kontrolü;
+- unit testler;
+- positive/negative completion evidence;
+- sentetik eval scorer self-test;
+- deterministik plugin ZIP paketleri ve SHA-256.
+
+## Codex marketplace
+
+```text
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
+codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 
-Evidence gate, bir task contract verilirse kabul kriterlerinden birinin sessizce atlanmasını da yakalar:
+Laravel, design, cloud ve authoring paketlerini yalnız ihtiyaç olduğunda aynı marketplace adıyla ekleyin. Yeni skill metadata'sının yüklenmesi için yeni bir Codex thread'i başlatın.
 
-```bash
-python scripts/evidence_gate.py \
-  examples/completion-evidence.pass.json \
-  --contract examples/task-contract.static-validation.json
+## Claude Code marketplace
+
+```text
+claude plugin marketplace add EgoistDeveloper/codex-skills-foundation
+claude plugin install engineering-foundation-core@egoist-engineering-foundation
 ```
 
-Eval fixture'ları sentetiktir. Scorer'ın yeşil çıkması yalnız scorer mantığının çalıştığını gösterir; Codex veya Claude'un görevi doğru yaptığına dair canlı kanıt değildir.
+Yerel geliştirmede her plugin dizini `claude plugin validate <plugin-dir> --strict` ile doğrulanır.
 
-## İsteğe bağlı proje agent profilleri
+## Doğruluk sınırı
 
-Taşınabilir skill, host'un native subagent'larıyla çalışır. Tekrarlanan işler için ayrıca model sabitlemeyen üç dar, read-only profil bulunur: explorer, reviewer ve evidence auditor.
+Statik test, manifest doğrulaması ve kurulum smoke testi; olasılıksal modelin her gerçek görevde kusursuz davranacağını kanıtlamaz. Bu repo, yanlış activation, gereksiz subagent, kapsam kayması ve sahte completion riskini ölçülebilir kapılarla azaltır. Canlı Codex/Claude qualification yalnız gerçek, review edilebilir run artifact'larıyla ileri sürülebilir.
 
-Önce dry-run:
-
-```powershell
-python scripts/install_agent_profiles.py --provider codex --target D:\proje
-python scripts/install_agent_profiles.py --provider claude --target D:\proje
-```
-
-Dosyalar incelendikten sonra `--apply` eklenir. Çakışan mevcut dosyalar `--force` açıkça verilmeden ezilmez. Ayrıntı: `docs/agent-profiles.md`.
-
-## Bilinçli olarak eklenmeyenler
-
-- MCP server ve hook;
-- credential veya telemetry;
-- kontrolsüz external-model router;
-- sabit model adları;
-- recursive subagent zinciri;
-- otomatik commit, push, merge, migration veya deploy;
-- statik unit testlerden uydurulmuş “agent davranışı doğrulandı” iddiası.
-
-Mimari gerekçeler `AUDIT_REPORT_TR.md`, gerçek PR ile güvenli karşılaştırma sırası `MIGRATION_FROM_PR1.md` içindedir.
+Ayrıntılar: [`docs/architecture.md`](docs/architecture.md), [`docs/evals.md`](docs/evals.md), [`docs/qualification.md`](docs/qualification.md).

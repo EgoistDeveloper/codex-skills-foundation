@@ -6,8 +6,8 @@
   "required": [
     "task_id",
     "completion_status",
+    "workspace",
     "items",
-    "working_tree_reviewed",
     "remaining_risks"
   ],
   "properties": {
@@ -22,6 +22,33 @@
         "BLOCKED"
       ]
     },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "branch",
+        "head_sha",
+        "working_tree_reviewed"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "minLength": 7
+        },
+        "working_tree_reviewed": {
+          "type": "boolean"
+        }
+      }
+    },
     "items": {
       "type": "array",
       "minItems": 1,
@@ -29,14 +56,15 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "criterion",
+          "criterion_id",
           "status",
+          "summary",
           "evidence"
         ],
         "properties": {
-          "criterion": {
+          "criterion_id": {
             "type": "string",
-            "minLength": 1
+            "pattern": "^[A-Z][A-Z0-9_-]{0,31}$"
           },
           "status": {
             "enum": [
@@ -46,16 +74,90 @@
               "NOT_APPLICABLE"
             ]
           },
-          "evidence": {
+          "summary": {
             "type": "string",
             "minLength": 1
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "summary"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "command",
+                    "inspection",
+                    "runtime",
+                    "artifact",
+                    "decision"
+                  ]
+                },
+                "summary": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "command": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "fresh": {
+                  "type": "boolean"
+                },
+                "exit_code": {
+                  "type": "integer"
+                },
+                "artifact_path": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "command"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "command",
+                      "fresh",
+                      "exit_code"
+                    ]
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "type": {
+                        "const": "artifact"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "artifact_path"
+                    ]
+                  }
+                }
+              ]
+            }
           }
         }
-      },
-      "uniqueItems": true
-    },
-    "working_tree_reviewed": {
-      "type": "boolean"
+      }
     },
     "remaining_risks": {
       "type": "array",
@@ -64,35 +166,5 @@
         "minLength": 1
       }
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "completion_status": {
-            "const": "COMPLETE"
-          }
-        },
-        "required": [
-          "completion_status"
-        ]
-      },
-      "then": {
-        "properties": {
-          "items": {
-            "items": {
-              "properties": {
-                "status": {
-                  "enum": [
-                    "PASS",
-                    "NOT_APPLICABLE"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }

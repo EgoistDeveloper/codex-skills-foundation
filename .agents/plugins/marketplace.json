@@ -39,6 +39,30 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Creativity"
+    },
+    {
+      "name": "engineering-foundation-cloud",
+      "source": {
+        "source": "local",
+        "path": "./plugins/engineering-foundation-cloud"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "engineering-foundation-authoring",
+      "source": {
+        "source": "local",
+        "path": "./plugins/engineering-foundation-authoring"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

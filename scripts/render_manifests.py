@@ -9,85 +9,93 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "catalog" / "plugins.json"
-REPOSITORY = "https://github.com/EgoistDeveloper/codex-skills-foundation"
 PORTABLE_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+CLAUDE_PLUGIN_SCHEMA = "https://json.schemastore.org/claude-code-plugin-manifest.json"
+CLAUDE_MARKETPLACE_SCHEMA = "https://json.schemastore.org/claude-code-marketplace.json"
 
 
 def dumps(data: object) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 
+def common(plugin: dict, marketplace: dict) -> dict:
+    return {
+        "name": plugin["name"],
+        "version": plugin["version"],
+        "description": plugin["description"],
+        "author": {"name": marketplace["owner_name"], "url": marketplace["owner_url"]},
+        "homepage": marketplace["homepage"],
+        "repository": marketplace["repository"],
+        "license": "MIT",
+        "keywords": plugin["keywords"],
+    }
+
+
 def targets(catalog: dict) -> dict[Path, str]:
     outputs: dict[Path, str] = {}
+    market = catalog["marketplace"]
     for plugin in catalog["plugins"]:
         root = ROOT / plugin["path"]
-        common = {
-            "name": plugin["name"],
-            "version": plugin["version"],
-            "description": plugin["description"],
-            "author": {
-                "name": "EgoistDeveloper",
-                "url": catalog["marketplace"]["owner_url"],
+        shared = common(plugin, market)
+        outputs[root / "plugin.json"] = dumps({
+            "$schema": PORTABLE_SCHEMA,
+            **shared,
+            "extensions": {
+                "com.openai.codex": {"manifest": "./.codex-plugin/plugin.json"},
+                "com.anthropic.claude-code": {"manifest": "./.claude-plugin/plugin.json"},
             },
-            "repository": REPOSITORY,
-            "license": "MIT",
-            "keywords": plugin["keywords"],
-        }
-        outputs[root / "plugin.json"] = dumps({"$schema": PORTABLE_SCHEMA, **common})
+        })
         outputs[root / ".codex-plugin" / "plugin.json"] = dumps({
-            **common,
+            **shared,
             "skills": "./skills/",
             "interface": {
                 "displayName": plugin["display_name"],
                 "shortDescription": plugin["short_description"],
                 "longDescription": plugin["description"],
-                "developerName": catalog["marketplace"]["owner_name"],
+                "developerName": market["owner_name"],
                 "category": plugin["category"],
-                "defaultPrompt": [plugin["default_prompt"]],
+                "capabilities": plugin["capabilities"],
+                "websiteURL": market["homepage"],
+                "privacyPolicyURL": market["privacy_policy_url"],
+                "termsOfServiceURL": market["terms_of_service_url"],
+                "defaultPrompt": plugin["default_prompts"],
+                "brandColor": plugin["brand_color"],
+                "screenshots": [],
             },
         })
         outputs[root / ".claude-plugin" / "plugin.json"] = dumps({
-            "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+            "$schema": CLAUDE_PLUGIN_SCHEMA,
             "displayName": plugin["display_name"],
-            **common,
+            **shared,
         })
 
     outputs[ROOT / ".agents" / "plugins" / "marketplace.json"] = dumps({
-        "name": catalog["marketplace"]["name"],
-        "interface": {"displayName": catalog["marketplace"]["display_name"]},
+        "name": market["name"],
+        "interface": {"displayName": market["display_name"]},
         "plugins": [
             {
                 "name": p["name"],
                 "source": {"source": "local", "path": f"./{p['path']}"},
-                "policy": {
-                    "installation": "AVAILABLE",
-                    "authentication": "ON_INSTALL",
-                },
+                "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
                 "category": p["category"],
             }
             for p in catalog["plugins"]
         ],
     })
     outputs[ROOT / ".claude-plugin" / "marketplace.json"] = dumps({
-        "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-        "name": catalog["marketplace"]["name"],
+        "$schema": CLAUDE_MARKETPLACE_SCHEMA,
+        "name": market["name"],
         "version": "1.0.0",
-        "description": catalog["marketplace"]["description"],
-        "owner": {
-            "name": catalog["marketplace"]["owner_name"],
-            "url": catalog["marketplace"]["owner_url"],
-        },
+        "description": market["description"],
+        "owner": {"name": market["owner_name"], "url": market["owner_url"]},
         "plugins": [
             {
                 "name": p["name"],
                 "description": p["description"],
                 "version": p["version"],
-                "author": {
-                    "name": "EgoistDeveloper",
-                    "url": catalog["marketplace"]["owner_url"],
-                },
+                "author": {"name": market["owner_name"], "url": market["owner_url"]},
                 "source": f"./{p['path']}",
-                "category": "development" if p["category"] == "Developer Tools" else "productivity",
+                "category": p["claude_category"],
             }
             for p in catalog["plugins"]
         ],
@@ -115,7 +123,7 @@ def main() -> int:
             print(f"- {item}")
         print("Run: python scripts/render_manifests.py")
         return 1
-    print("manifest rendering: PASS" if not args.check else "manifest drift check: PASS")
+    print("manifest drift check: PASS" if args.check else "manifest rendering: PASS")
     return 0
 
 

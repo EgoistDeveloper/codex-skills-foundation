@@ -1,0 +1,3 @@
+interface:
+  display_name: "Bounded Orchestration"
+  short_description: "Use one agent by default and delegate only independent work"

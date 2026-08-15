@@ -1,47 +1,45 @@
-# Release qualification matrix
+# Release qualification
 
-A release is not qualified because repository validation is green or because the scorer accepted a convenient subset of rows.
+Repository validation, provider package validation, and live behavior qualification are separate evidence classes.
 
-| Surface | Static install | Positive trigger | Negative trigger | Behavior cases | Safety | Evidence | Status |
+## Static and provider package gates
+
+| Gate | Required | Evidence |
+|---|---:|---|
+| Linux bootstrap | yes | GitHub Actions `Validate foundation / ubuntu-latest` |
+| Windows bootstrap | yes | GitHub Actions `Validate foundation / windows-latest` |
+| Claude plugin strict validation | yes | pinned Claude Code CLI validates marketplace and every package |
+| Codex marketplace/install smoke | yes | pinned Codex CLI adds the local marketplace and installs every package |
+| deterministic ZIPs and SHA-256 | yes | bootstrap package step and CI artifact |
+
+Actual run IDs and results for the released revision belong in `docs/release-evidence.md`.
+
+## Live behavior matrix
+
+| Surface | Install | Positive trigger | Negative trigger | Behavior | Safety | Evidence | Status |
 |---|---:|---:|---:|---:|---:|---:|---|
-| ChatGPT/Codex desktop app | required | required | required | required | required | required | NOT_RUN |
-| Codex CLI | required | required | required | required | required | required | NOT_RUN |
-| Codex cloud | required | required | required | required | required | required | NOT_RUN |
-| Claude Code CLI/desktop surface | required | required | required | required | required | required | NOT_RUN |
+| ChatGPT/Codex desktop | required | required | required | required | required | required | NOT_RUN |
+| Codex CLI authenticated session | required | required | required | required | required | required | NOT_RUN |
+| Codex Cloud | required | required | required | required | required | required | NOT_RUN |
+| Claude Code authenticated session | required | required | required | required | required | required | NOT_RUN |
 | Agent Plugins reference client | required | required | required | selected | required | required | NOT_RUN |
 
-## Optional-agent adapter checks
-
-These are separate from portable plugin qualification:
-
-| Adapter | Parse/discover | Read-only runtime | No nested delegation | Representative invocation | Status |
-|---|---:|---:|---:|---:|---|
-| Codex `.codex/agents/*.toml` | required | required | required | required | NOT_RUN |
-| Claude `.claude/agents/*.md` | required | required | required | required | NOT_RUN |
+The repository may publish a statically and provider-package-validated release while this matrix remains `NOT_RUN`, but it must not describe that release as live-model-qualified. Precision is less glamorous than a giant green badge, yet strangely more useful.
 
 ## Release-critical cases
 
-- tiny task skips plan and subagents;
-- post-pass refactor does not occur;
-- required failed or unrun checks keep completion partial;
-- completion evidence covers every task-contract acceptance item;
-- multi-agent fan-out remains bounded;
+- tiny edit skips durable plan and subagents;
+- completion does not trigger a speculative rewrite;
+- required failed, omitted, or unrun evidence prevents completion;
+- multi-agent fan-out remains bounded with one writer per file;
 - review suppresses unsupported style noise;
 - handoff is compact and verifiable;
-- Laravel uses repository versions and measured evidence;
-- design chooses one direction and verifies rendered states.
+- current-source research activates only when repository evidence is insufficient;
+- Laravel reads installed versions and demands measured database/performance evidence;
+- design chooses one direction and verifies rendered states;
+- cloud readiness does not silently enable network or expose credentials;
+- authoring includes positive and negative eval coverage.
 
-## Evidence record
+## Live campaign record
 
-Record:
-
-- campaign ID;
-- provider, client, client version, authentication mode, operating system, and execution surface;
-- model/capability tier and relevant runtime settings;
-- package commit and case revision;
-- baseline, previous, and candidate repetitions;
-- redacted traces, artifacts, diffs, commands, screenshots, and exit codes;
-- token/tool/duration/subagent/churn metrics;
-- grader identity/version where subjective grading is used.
-
-A matrix cell changes from `NOT_RUN` only when its evidence artifact exists and is reviewable. A summary sentence does not qualify a surface. Apparently this has to be written down.
+Record campaign ID, provider/client/version, operating system, authentication mode, relevant model/capability settings, harness commit, subject versions/commits, case revisions, repetitions, redacted traces/artifacts/diffs/commands/screenshots, token/tool/duration/agent/churn metrics, and grader identity/version where subjective grading is used.

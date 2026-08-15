@@ -1,0 +1,41 @@
+{
+  "name": "engineering-foundation-cloud",
+  "version": "0.2.0",
+  "description": "Codex Cloud and remote-agent environment readiness with idempotent setup, bounded network access, secret safety, caching, and reproducible checks.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "codex-cloud",
+    "remote-agent",
+    "environment",
+    "cache",
+    "network",
+    "secrets"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Cloud Engineering Foundation",
+    "shortDescription": "Safe, reproducible setup for Codex Cloud and remote agents.",
+    "longDescription": "Codex Cloud and remote-agent environment readiness with idempotent setup, bounded network access, secret safety, caching, and reproducible checks.",
+    "developerName": "EgoistDeveloper",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+    "privacyPolicyURL": "https://github.com/EgoistDeveloper/codex-skills-foundation/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/EgoistDeveloper/codex-skills-foundation/blob/main/TERMS.md",
+    "defaultPrompt": [
+      "Audit this repository for a safe and reproducible Codex Cloud environment."
+    ],
+    "brandColor": "#0369A1",
+    "screenshots": []
+  }
+}

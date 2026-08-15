@@ -1,0 +1,3 @@
+interface:
+  display_name: "Task Contract"
+  short_description: "Define acceptance, scope, evidence, risk, and reopen rules"

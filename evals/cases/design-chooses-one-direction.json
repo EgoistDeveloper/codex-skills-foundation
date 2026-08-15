@@ -2,16 +2,14 @@
   "id": "design-chooses-one-direction",
   "revision": 1,
   "package": "engineering-foundation-design",
-  "prompt": "Design and implement a corporate logistics landing page in Turkish. Choose one strong direction, not multiple variants.",
+  "prompt": "Redesign this product screen with a professional, coherent visual system.",
   "expected_activation": [
     "design-direction"
   ],
   "forbidden_activation": [],
   "behavior_assertions": [
-    "One direction covers hierarchy, typography, tokens, states, responsive behavior, accessibility, and performance.",
-    "Turkish glyph coverage is checked.",
-    "Generic decorative noise is not used as a substitute for hierarchy."
+    "Produces one direction unless alternatives were requested.",
+    "Defines hierarchy, tokens, states, accessibility, and performance."
   ],
-  "risk": "medium",
-  "fixture": "fixtures/logistics-ui"
+  "risk": "medium"
 }

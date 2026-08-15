@@ -3,11 +3,12 @@
   "displayName": "Engineering Foundation Core",
   "name": "engineering-foundation-core",
   "version": "0.2.0",
-  "description": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+  "description": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
   "author": {
     "name": "EgoistDeveloper",
     "url": "https://github.com/EgoistDeveloper"
   },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
   "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
   "license": "MIT",
   "keywords": [
@@ -16,6 +17,7 @@
     "verification",
     "review",
     "handoff",
+    "research",
     "multi-agent"
   ]
 }

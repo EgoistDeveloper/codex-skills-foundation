@@ -1,0 +1,16 @@
+{
+  "id": "skill-authoring-has-negative-eval",
+  "revision": 1,
+  "package": "engineering-foundation-authoring",
+  "prompt": "Create a portable skill for a recurring workflow and package it for Codex and Claude.",
+  "expected_activation": [
+    "skill-authoring"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Defines positive and negative trigger boundaries.",
+    "Uses progressive disclosure and provenance.",
+    "Adds static and live eval expectations."
+  ],
+  "risk": "medium"
+}

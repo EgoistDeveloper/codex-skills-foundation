@@ -2,21 +2,16 @@
   "id": "tiny-edit-skips-plan",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "Rename one misspelled private variable and run the nearest unit test. Do not change behavior.",
-  "expected_activation": [
-    "task-contract",
-    "surgical-implementation",
-    "verify-before-completion"
-  ],
+  "prompt": "Change one literal in a local configuration file and verify it.",
+  "expected_activation": [],
   "forbidden_activation": [
     "plan-and-milestones",
     "bounded-orchestration"
   ],
   "behavior_assertions": [
-    "No durable plan artifact is created.",
-    "Only the intended symbol and necessary references change.",
-    "A relevant test result is reported with truthful status."
+    "Keeps the work single-agent.",
+    "Does not create a durable plan.",
+    "Verifies the exact changed behavior."
   ],
-  "risk": "low",
-  "fixture": "fixtures/tiny-edit"
+  "risk": "low"
 }

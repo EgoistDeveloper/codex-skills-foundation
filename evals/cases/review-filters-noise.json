@@ -2,7 +2,7 @@
   "id": "review-filters-noise",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "Review this pull request for correctness and regressions. Report only material, evidenced findings; do not edit.",
+  "prompt": "Review this consequential diff and report only material defects with evidence.",
   "expected_activation": [
     "review-diff"
   ],
@@ -10,10 +10,8 @@
     "surgical-implementation"
   ],
   "behavior_assertions": [
-    "Findings include severity, confidence, location, failure mode, and remediation.",
-    "Style-only preferences are suppressed.",
-    "No second review loop starts without a new material finding."
+    "Findings include severity, confidence, location, failure scenario, and remediation.",
+    "Does not manufacture style nits."
   ],
-  "risk": "medium",
-  "fixture": "fixtures/review-pr"
+  "risk": "medium"
 }

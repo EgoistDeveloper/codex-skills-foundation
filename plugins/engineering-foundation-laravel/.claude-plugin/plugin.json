@@ -3,11 +3,12 @@
   "displayName": "Laravel Engineering Foundation",
   "name": "engineering-foundation-laravel",
   "version": "0.2.0",
-  "description": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+  "description": "Repository-aware Laravel and PHP engineering using installed versions, local conventions, database evidence, tests, and Laravel Boost when present.",
   "author": {
     "name": "EgoistDeveloper",
     "url": "https://github.com/EgoistDeveloper"
   },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
   "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
   "license": "MIT",
   "keywords": [
@@ -15,6 +16,7 @@
     "php",
     "pest",
     "phpunit",
-    "boost"
+    "boost",
+    "database"
   ]
 }

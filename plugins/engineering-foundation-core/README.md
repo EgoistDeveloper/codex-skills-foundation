@@ -1,9 +1,7 @@
-# engineering-foundation-core
+# Engineering Foundation Core
 
-Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.
+Provider-neutral engineering contracts and workflows for ordinary coding work.
 
-Version: `0.2.0`
+This package contains nine portable Agent Skills. Install it for general engineering work; Laravel, design, cloud, and authoring concerns remain separate so discovery context stays small.
 
-This package contains portable Agent Skills plus separate Agent Plugins, Codex, and Claude Code manifests. It contains no MCP server or lifecycle hook.
-
-Validate from the repository root before installation.
+Provider manifests live under `.codex-plugin/` and `.claude-plugin/`. Repository-level validation and packaging are owned by the project root.

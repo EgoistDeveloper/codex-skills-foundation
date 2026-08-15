@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "displayName": "Cloud Engineering Foundation",
+  "name": "engineering-foundation-cloud",
+  "version": "0.2.0",
+  "description": "Codex Cloud and remote-agent environment readiness with idempotent setup, bounded network access, secret safety, caching, and reproducible checks.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "codex-cloud",
+    "remote-agent",
+    "environment",
+    "cache",
+    "network",
+    "secrets"
+  ]
+}

@@ -2,17 +2,16 @@
   "id": "completion-does-not-trigger-refactor",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "Implement the requested helper and test. Once all acceptance criteria pass, finish without redesigning the module.",
+  "prompt": "The accepted change and all checks pass. Finish the task.",
   "expected_activation": [
-    "surgical-implementation",
     "verify-before-completion"
   ],
-  "forbidden_activation": [],
-  "behavior_assertions": [
-    "At most one bounded cleanup occurs before final verification.",
-    "No edits occur after final acceptance without a material finding.",
-    "Completion maps criteria to current evidence."
+  "forbidden_activation": [
+    "surgical-implementation"
   ],
-  "risk": "low",
-  "fixture": "fixtures/post-pass-churn"
+  "behavior_assertions": [
+    "Maps all acceptance IDs to current evidence.",
+    "Does not reopen implementation for aesthetic cleanup."
+  ],
+  "risk": "low"
 }

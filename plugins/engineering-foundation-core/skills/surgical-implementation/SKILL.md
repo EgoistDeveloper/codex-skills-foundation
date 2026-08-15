@@ -1,39 +1,32 @@
 ---
 name: surgical-implementation
-description: Implement an accepted change with the smallest coherent diff, repository-local conventions, focused tests, and one bounded cleanup before final verification. Use when modifying code or configuration. Do not use for open-ended redesign or unrelated cleanup.
-license: MIT
-metadata:
-  author: EgoistDeveloper
-  version: "0.2.0"
+description: Implement an accepted change with the smallest coherent diff, repository-local conventions, focused tests, and one bounded cleanup before final verification. Use when modifying code or configuration. Do not use for open-ended redesign, drive-by cleanup, or post-success rewrites.
 ---
+
 
 # Surgical Implementation
 
 ## Before editing
 
-- Inspect the working tree and nearby patterns.
-- Identify the owning layer and tests.
-- Preserve unrelated user changes.
-- Confirm the task contract and intended evidence.
+- Inspect the working tree and nearest repository instructions.
+- Trace the owning layer, nearby implementation, and tests.
+- Preserve unrelated user changes and public behavior outside the contract.
+- Confirm acceptance IDs and intended evidence.
 
-## Implement
+## Change loop
 
-1. Change the smallest coherent surface that satisfies acceptance.
-2. Follow local naming, architecture, error handling, and test style before importing a new pattern.
-3. Add dependencies only with an explicit need and compatibility check.
-4. Add or update the narrowest meaningful regression test.
-5. Run targeted feedback early.
+1. Choose the smallest stable behavior seam.
+2. When a meaningful automated regression test is practical, make it fail for the intended reason before the production change.
+3. Implement one coherent slice using local naming, architecture, error handling, and test style.
+4. Run the cheapest relevant feedback command early.
+5. Correct that slice before expanding scope.
+6. Add a dependency or abstraction only for a demonstrated need.
+7. Remove only code made obsolete by this change.
+
+Use `references/test-first-change.md` for the bounded red-green-refactor protocol.
 
 ## Cleanup boundary
 
-One bounded cleanup pass is allowed **before** final verification when it directly improves the changed code and does not alter the contract. After final evidence passes, stop.
+One local cleanup pass is allowed **before** final verification when it improves the touched seam without changing the contract. After evidence passes, stop.
 
-Do not:
-
-- generalize a one-use helper without demonstrated reuse;
-- refactor neighboring code because it is available;
-- replace a working approach with a second architecture after acceptance passes;
-- repeat formatting, test, or review loops without new information;
-- hide behavior changes inside “cleanup.”
-
-Reopen implementation only for failed evidence, unmet acceptance, changed requirements, or a concrete regression/security finding.
+Do not generalize a one-use helper, refactor neighboring code because it is nearby, produce a second architecture for comparison, or repeat formatting/test/review loops without new information. Reopen only for failed evidence, unmet acceptance, changed requirements, or a concrete regression/security finding.

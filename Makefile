@@ -1,10 +1,16 @@
-.PHONY: validate render test
+.PHONY: bootstrap validate render test package
+
+bootstrap:
+	python scripts/bootstrap.py
 
 validate:
-	./scripts/bootstrap.sh
+	python scripts/validate_repository.py --strict
 
 render:
-	python3 scripts/render_manifests.py
+	python scripts/render_manifests.py
 
 test:
-	python3 -m unittest discover -s tests -v
+	python -m unittest discover -s tests -v
+
+package:
+	python scripts/package_plugins.py --output dist

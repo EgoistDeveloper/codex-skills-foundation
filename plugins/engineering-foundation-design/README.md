@@ -1,9 +1,5 @@
-# engineering-foundation-design
+# Design Engineering Foundation
 
-Single-direction interface design, design-contract use, implementation, and visual verification.
+One coherent interface direction followed by rendered visual verification.
 
-Version: `0.2.0`
-
-This package contains portable Agent Skills plus separate Agent Plugins, Codex, and Claude Code manifests. It contains no MCP server or lifecycle hook.
-
-Validate from the repository root before installation.
+Install this package for UI creation, redesign, or visual QA. It separates direction from verification so QA does not quietly redesign the product.

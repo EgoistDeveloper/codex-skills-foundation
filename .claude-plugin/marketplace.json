@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "egoist-engineering-foundation",
   "version": "1.0.0",
-  "description": "Lean, evidence-driven engineering workflows for coding agents.",
+  "description": "Evidence-driven, token-conscious engineering workflows for coding agents.",
   "owner": {
     "name": "EgoistDeveloper",
     "url": "https://github.com/EgoistDeveloper"
@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "engineering-foundation-core",
-      "description": "Task contracts, bounded planning, orchestration, implementation, debugging, review, verification, and handoff.",
+      "description": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
       "version": "0.2.0",
       "author": {
         "name": "EgoistDeveloper",
@@ -21,7 +21,7 @@
     },
     {
       "name": "engineering-foundation-laravel",
-      "description": "Project-aware Laravel and PHP change workflow that integrates with Laravel Boost when available.",
+      "description": "Repository-aware Laravel and PHP engineering using installed versions, local conventions, database evidence, tests, and Laravel Boost when present.",
       "version": "0.2.0",
       "author": {
         "name": "EgoistDeveloper",
@@ -32,7 +32,7 @@
     },
     {
       "name": "engineering-foundation-design",
-      "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+      "description": "Single-direction interface design, design-contract authoring, implementation states, accessibility, and rendered visual verification.",
       "version": "0.2.0",
       "author": {
         "name": "EgoistDeveloper",
@@ -40,6 +40,28 @@
       },
       "source": "./plugins/engineering-foundation-design",
       "category": "productivity"
+    },
+    {
+      "name": "engineering-foundation-cloud",
+      "description": "Codex Cloud and remote-agent environment readiness with idempotent setup, bounded network access, secret safety, caching, and reproducible checks.",
+      "version": "0.2.0",
+      "author": {
+        "name": "EgoistDeveloper",
+        "url": "https://github.com/EgoistDeveloper"
+      },
+      "source": "./plugins/engineering-foundation-cloud",
+      "category": "development"
+    },
+    {
+      "name": "engineering-foundation-authoring",
+      "description": "Author and maintain compact Agent Skills and plugin packages with precise triggers, progressive disclosure, provenance, validation, and eval coverage.",
+      "version": "0.2.0",
+      "author": {
+        "name": "EgoistDeveloper",
+        "url": "https://github.com/EgoistDeveloper"
+      },
+      "source": "./plugins/engineering-foundation-authoring",
+      "category": "development"
     }
   ]
 }

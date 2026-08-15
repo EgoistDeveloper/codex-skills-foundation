@@ -1,29 +1,36 @@
 {
-  "task_id": "example-static-validation",
-  "objective": "Prove that the candidate repository is internally well-formed in the current workspace.",
+  "task_id": "static-validation",
+  "objective": "Repository static validation finishes with no errors or warnings.",
+  "context": [
+    "The repository uses Python 3.11+ validation scripts."
+  ],
+  "assumptions": [],
   "acceptance": [
-    "Repository validator passes",
-    "Unit tests pass"
-  ],
-  "non_goals": [
-    "Qualify behavior in live Codex or Claude clients"
-  ],
-  "constraints": [
-    "Use only checks available in the repository"
-  ],
-  "evidence": [
     {
-      "criterion": "Repository validator passes",
-      "method": "Run python scripts/validate_repository.py --strict"
+      "id": "A1",
+      "criterion": "Manifest drift validation passes.",
+      "required": true,
+      "evidence_hint": "Run the manifest renderer in check mode."
     },
     {
-      "criterion": "Unit tests pass",
-      "method": "Run python -m unittest discover -s tests -v"
+      "id": "A2",
+      "criterion": "Repository validation and unit tests pass.",
+      "required": true,
+      "evidence_hint": "Run strict validation and the full unit-test suite."
     }
   ],
-  "risk": "low",
+  "non_goals": [
+    "Live Codex or Claude behavior qualification."
+  ],
+  "constraints": [
+    "Evidence must come from the current workspace."
+  ],
+  "risk": {
+    "level": "low",
+    "summary": "Static repository checks only."
+  },
   "reopen_conditions": [
-    "A repository validator or unit test fails",
-    "The acceptance contract changes"
+    "A required command fails.",
+    "A generated manifest drifts."
   ]
 }

@@ -1,15 +1,13 @@
-# Laravel preflight checklist
+# Laravel preflight
 
-Use only commands available in the repository. Examples, not mandates:
-
-```bash
-php -v
-composer show laravel/framework --locked
-php artisan about
-php artisan route:list
-php artisan test --filter=<target>
-./vendor/bin/pint --test
-./vendor/bin/phpstan analyse
-```
-
-Inspect `composer.lock` rather than assuming the latest release. Confirm the actual database in runtime/test configuration before writing engine-specific SQL. Never expose secrets from `.env` in logs or reports.
+- PHP and Laravel versions:
+- `composer.lock` and first-party packages:
+- Database engine and production parity:
+- Pest/PHPUnit commands:
+- Pint/static-analysis commands:
+- Blade, Livewire, Inertia/Vue, or API boundary:
+- Queue/cache/event usage:
+- Tenant, policy, scope, soft-delete, and audit rules:
+- Nearby implementation and test patterns:
+- Laravel Boost installed and healthy:
+- Migration, rollback, query, and compatibility risks:

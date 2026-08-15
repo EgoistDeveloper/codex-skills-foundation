@@ -3,11 +3,12 @@
   "displayName": "Design Engineering Foundation",
   "name": "engineering-foundation-design",
   "version": "0.2.0",
-  "description": "Single-direction interface design, design-contract use, implementation, and visual verification.",
+  "description": "Single-direction interface design, design-contract authoring, implementation states, accessibility, and rendered visual verification.",
   "author": {
     "name": "EgoistDeveloper",
     "url": "https://github.com/EgoistDeveloper"
   },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
   "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
   "license": "MIT",
   "keywords": [
@@ -15,6 +16,7 @@
     "ui",
     "typography",
     "accessibility",
+    "responsive",
     "visual-qa"
   ]
 }

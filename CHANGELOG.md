@@ -1,31 +1,37 @@
 # Changelog
 
-All notable changes to this project are documented here. Versions follow semantic versioning once a release is qualified and tagged.
+## 0.2.0 - 2026-08-15
 
-## 0.2.0-candidate - 2026-08-15
+### Architecture
 
-### Added
+- Split the distribution into core, Laravel, design, Cloud, and authoring packages.
+- Kept provider-neutral behavior in Agent Skills and generated provider manifests from one catalog.
+- Added OpenAI per-skill interface metadata and complete Codex plugin presentation fields.
+- Kept optional Codex and Claude specialist profiles project-scoped, model-neutral, and read-only.
 
-- Three installable packages: core, Laravel, and design.
-- Agent Plugins 1.0.0, Codex, Claude, and local marketplace manifests generated from one catalog.
-- Eleven portable skills with bounded trigger descriptions.
-- Optional project-scoped read-only Codex and Claude agent profiles with a dry-run-first installer.
-- Task-contract, completion-evidence, handoff, eval-case, and eval-run schemas.
-- Twelve behavioral eval case definitions and a JSONL scorer.
-- Repository validation, manifest drift checks, evidence gate, unit tests, Python-version guard, and cross-platform bootstrap scripts.
+### Correctness and evidence
 
-### Hardened
+- Replaced string-matched acceptance criteria with stable criterion IDs.
+- Combined exact task-contract coverage with fresh command exit codes, inspection/runtime records, artifacts, and working-tree identity.
+- Required `NOT_APPLICABLE` criteria to be optional in the contract.
+- Fixed eval identity so baseline, previous, and candidate may carry different subject versions and commits while sharing one harness commit.
+- Added hard gates for duplicate runs, type confusion, repetition drift, missing artifacts, missing traces, and candidate regressions.
 
-- OpenAI marketplace installation/authentication policy and publisher metadata.
-- Claude manifest schema declaration and display metadata.
-- Completion gate now rejects required `NOT_RUN` and detects omitted contract acceptance criteria when a contract is supplied.
-- Eval loader rejects string booleans, duplicate identities, mixed synthetic/live rows, metadata/repetition drift, and unsafe or missing live artifacts.
-- Scorer no longer labels a passing subset as release-qualified; full matrix coverage remains a separate requirement.
-- PowerShell bootstrap now fails on every unexpected native-process exit code, including malformed negative fixtures.
+### Compatibility and validation
 
-### Not qualified
+- Added Linux and Windows CI lanes.
+- Restored Markdown-link, secret-pattern, placeholder, and description-budget checks.
+- Added JSON Schema and real YAML parsing validation.
+- Corrected OpenAI marketplace authentication values to `ON_INSTALL` / `ON_USE`.
+- Added deterministic package archive tests and stricter provider manifest checks.
 
-- Pull Request #1 diff comparison.
-- Live Codex desktop, CLI, cloud, or ChatGPT plugin behavior.
-- Live Claude Code plugin and custom-agent behavior.
-- Token-cost claims across real projects.
+### Preserved from v0.1
+
+- Restored source-grounded research and Codex Cloud readiness as appropriately scoped packages.
+- Preserved test-first behavior as a progressively disclosed implementation reference.
+- Retained Laravel database, route, migration, queue, policy, and performance guidance.
+- Retained the durable design-contract template and explicit rendered visual QA.
+
+## 0.1.0 - 2026-08-14
+
+- Initial engineering foundation implementation.

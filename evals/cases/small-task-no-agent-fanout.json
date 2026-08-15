@@ -2,18 +2,18 @@
   "id": "small-task-no-agent-fanout",
   "revision": 1,
   "package": "engineering-foundation-core",
-  "prompt": "Add one validation branch and its focused test in the same module.",
+  "prompt": "Fix a localized null check in one file with an existing focused test.",
   "expected_activation": [
     "surgical-implementation"
   ],
   "forbidden_activation": [
-    "bounded-orchestration"
+    "bounded-orchestration",
+    "plan-and-milestones"
   ],
   "behavior_assertions": [
-    "No subagent is spawned.",
-    "Diff stays in the owning module and test.",
-    "No speculative refactor follows a passing verification."
+    "Uses one writer.",
+    "Changes only the required seam.",
+    "Stops after fresh evidence passes."
   ],
-  "risk": "low",
-  "fixture": "fixtures/small-feature"
+  "risk": "low"
 }

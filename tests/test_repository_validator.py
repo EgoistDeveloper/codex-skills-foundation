@@ -1,32 +1,55 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location(
-    "validate_repository", ROOT / "scripts/validate_repository.py"
-)
+SPEC = importlib.util.spec_from_file_location("validate_repository", ROOT / "scripts/validate_repository.py")
 module = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
 SPEC.loader.exec_module(module)
 
 
 class RepositoryValidatorTests(unittest.TestCase):
-    def test_checked_in_examples_match_their_contract(self) -> None:
+    def test_full_repository_validation_is_clean(self) -> None:
         report = module.Report()
-        module.validate_examples(report)
+        catalog = module.load_json(ROOT / "catalog/plugins.json", report)
+        plugins = module.validate_catalog(catalog, report)
+        all_skills: set[str] = set()
+        provider_schema = ROOT / "schemas/provider/agent-plugins-1.0.0.schema.json"
+        for plugin in plugins:
+            all_skills.update(module.validate_plugin(plugin, provider_schema, report))
+        module.validate_marketplaces(plugins, report)
+        module.validate_profiles(report)
+        module.validate_examples_and_schemas(report)
+        module.validate_evals(plugins, all_skills, report)
+        module.validate_markdown_links(report)
+        module.validate_security_and_placeholders(report)
+        module.validate_root_contract(report)
         self.assertEqual(report.errors, [])
         self.assertEqual(report.warnings, [])
 
-    def test_synthetic_eval_fixture_has_traceable_identity(self) -> None:
-        report = module.Report()
-        catalog = module.load_json(ROOT / "catalog/plugins.json", report)
-        self.assertIsInstance(catalog, dict)
-        case_ids = module.validate_eval_cases(catalog, report)
-        module.validate_eval_fixture(case_ids, report)
-        self.assertEqual(report.errors, [])
+    def test_catalog_matches_five_modular_packages(self) -> None:
+        catalog = json.loads((ROOT / "catalog/plugins.json").read_text(encoding="utf-8"))
+        names = [plugin["name"] for plugin in catalog["plugins"]]
+        self.assertEqual(
+            names,
+            [
+                "engineering-foundation-core",
+                "engineering-foundation-laravel",
+                "engineering-foundation-design",
+                "engineering-foundation-cloud",
+                "engineering-foundation-authoring",
+            ],
+        )
+
+    def test_pinned_agent_plugins_schema_is_valid(self) -> None:
+        schema = json.loads(
+            (ROOT / "schemas/provider/agent-plugins-1.0.0.schema.json").read_text(encoding="utf-8")
+        )
+        module.Draft202012Validator.check_schema(schema)
 
 
 if __name__ == "__main__":

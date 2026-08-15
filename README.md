@@ -1,86 +1,98 @@
-# Codex Skills Foundation v0.2 Candidate
+# Codex Skills Foundation
 
-A lean, provider-neutral engineering foundation for Codex, ChatGPT, Claude Code, and clients that implement the open Agent Skills or Agent Plugins specifications.
+A portable, evidence-driven engineering foundation for Codex, ChatGPT, Codex Cloud, Claude Code, and clients that implement Agent Skills or Agent Plugins.
 
-This tree is a **clean-room candidate**, not a verified patch against Pull Request #1. The source PR was not readable from the environment that produced this package. Compare it with the actual branch before merging; matching file names are not evidence of matching behavior.
+The repository is intentionally modular. Install the small core everywhere, then add only the domain packages a project needs. This keeps discovery context smaller and reduces accidental activation.
 
-## Package model
+## Packages
 
-| Package | Install by default? | Purpose |
-|---|---:|---|
-| `engineering-foundation-core` | Yes | Contracts, planning, bounded orchestration, implementation, debugging, review, verification, and handoff |
-| `engineering-foundation-laravel` | Only for Laravel/PHP repos | Project-local Laravel workflow; delegates current framework guidance to Laravel Boost when present |
-| `engineering-foundation-design` | Only for UI work | Design direction, typography/tokens, implementation states, and visual verification |
+| Package | Install when | Skills |
+|---|---|---|
+| `engineering-foundation-core` | General engineering work | task contract, planning, bounded orchestration, implementation, debugging, source-grounded research, review, verification, handoff |
+| `engineering-foundation-laravel` | Laravel/PHP repositories | project-aware Laravel engineering |
+| `engineering-foundation-design` | Web/product UI work | design direction, rendered visual verification |
+| `engineering-foundation-cloud` | Codex Cloud or remote-agent setup | safe environment readiness |
+| `engineering-foundation-authoring` | Creating or maintaining skills/plugins | skill and plugin authoring |
 
-The split is deliberate. Skill names and descriptions consume discovery context before a skill body loads. Installing only the relevant package is cheaper and reduces accidental activation.
+## Design principles
 
-## Compatibility layers
+- One accountable writing agent by default.
+- Delegate only independent, bounded, evidence-producing work.
+- One writer per file and delegation depth one.
+- Use the smallest coherent change that satisfies the task contract.
+- Stop after accepted evidence passes; no speculative post-success rewrite.
+- Treat static validation, live behavior evals, and release qualification as different claims.
+- Keep provider-specific metadata and agent profiles outside the portable skill contract.
 
-Each plugin directory contains three independent manifests:
+## Requirements
 
-- `plugin.json`: Agent Plugins 1.0.0 portable manifest.
-- `.codex-plugin/plugin.json`: OpenAI ChatGPT/Codex package manifest.
-- `.claude-plugin/plugin.json`: Claude Code package manifest.
+- Python 3.11+
+- Development validation dependencies:
 
-Shared metadata is generated from `catalog/plugins.json`; provider manifests remain separate because their schemas and runtime behavior are not identical.
+```bash
+python -m pip install -r requirements-dev.txt
+```
 
-## Requirements and validation
+Run the complete cross-platform validation:
 
-Repository checks require Python 3.11 or newer. No third-party Python package is needed for the normal bootstrap.
+```bash
+python scripts/bootstrap.py
+```
 
-Linux/macOS/WSL:
+Wrappers are also available:
 
 ```bash
 ./scripts/bootstrap.sh
 ```
 
-Windows PowerShell:
-
 ```powershell
 ./scripts/bootstrap.ps1
 ```
 
-Direct checks:
+## Codex / ChatGPT marketplace
 
 ```bash
-python scripts/render_manifests.py --check
-python scripts/validate_repository.py --strict
-python -m unittest discover -s tests -v
-python scripts/evidence_gate.py \
-  examples/completion-evidence.pass.json \
-  --contract examples/task-contract.static-validation.json
-python scripts/score_eval_runs.py \
-  evals/fixtures/sample-runs.jsonl \
-  --allow-synthetic
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
+codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 
-The sample eval rows are synthetic and test only the scorer. A green scorer result is not a provider qualification result. Live release runs must satisfy the complete surface/case matrix in `docs/qualification.md`.
+Install Laravel, design, cloud, or authoring only when needed, then start a new thread so discovery metadata reloads. The marketplace manifest is `.agents/plugins/marketplace.json`. Every skill includes a minimal `agents/openai.yaml`; provider-neutral behavior remains in `SKILL.md`.
+
+## Claude Code marketplace
+
+```bash
+claude plugin validate . --strict
+claude plugin marketplace add EgoistDeveloper/codex-skills-foundation
+claude plugin install engineering-foundation-core@egoist-engineering-foundation
+```
+
+Install optional packages with the same marketplace suffix. During local development, Claude Code can load a plugin directory directly:
+
+```bash
+claude --plugin-dir ./plugins/engineering-foundation-core
+```
 
 ## Optional project-scoped agents
 
-The portable workflow works with host-native subagents. Three narrow, model-neutral, read-only project profiles are also supplied for repeated exploration, review, and evidence-audit work.
-
-Dry run first:
+Three narrow read-only profiles are supplied for repeated exploration, diff review, and evidence audit work. Preview before installation:
 
 ```bash
 python scripts/install_agent_profiles.py --provider codex --target /path/to/project
 python scripts/install_agent_profiles.py --provider claude --target /path/to/project
 ```
 
-Add `--apply` only after reviewing destinations. Existing conflicting files are not overwritten unless `--force` is explicit. See `docs/agent-profiles.md`.
+Add `--apply` after reviewing the destination. Existing conflicting files are not overwritten unless `--force` is explicit.
 
-## Installation testing
+## Evidence and evals
 
-Use the provider's current local-marketplace workflow. Do not copy files into global configuration silently. Validate a local install, restart or reload the client when required, and execute `docs/qualification.md` before sharing a release.
+- `schemas/task-contract.schema.json` defines stable acceptance IDs.
+- `schemas/completion-evidence.schema.json` records fresh commands, inspections, runtime observations, and artifacts.
+- `scripts/evidence_gate.py` requires exact contract coverage before `COMPLETE`.
+- `scripts/score_eval_runs.py` compares plugin-disabled baseline, previous release, and candidate without pretending they share the same commit.
+- Synthetic fixtures test scorer mechanics only and can never qualify a release.
 
-## Intentionally absent
+See [`docs/evals.md`](docs/evals.md), [`docs/qualification.md`](docs/qualification.md), and [`docs/release-evidence.md`](docs/release-evidence.md).
 
-- No MCP server.
-- No lifecycle hook that can block or mutate user work.
-- No credentials, telemetry, or external-model router.
-- No hard-coded model names.
-- No recursive agent delegation.
-- No automatic commits, pushes, merges, migrations, or deployment.
-- No claim that static unit tests prove model behavior.
+## Security
 
-See `AUDIT_REPORT_TR.md` for the research-backed decisions and `MIGRATION_FROM_PR1.md` for a safe comparison workflow.
+The default distribution ships no MCP server, hooks, telemetry, credential bridge, network client, model pin, recursive delegation, global installer, or destructive automation. See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), and [`docs/security.md`](docs/security.md).
