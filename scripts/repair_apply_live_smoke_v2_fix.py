@@ -17,3 +17,16 @@ for old, new in replacements:
     text = text.replace(old, new, 1)
 path.write_text(text, encoding="utf-8", newline="\n")
 runpy.run_path(str(path), run_name="__main__")
+
+# The one-shot patch embeds source code inside Python strings. Normalize any
+# quote-newline-quote sequences back to explicit escaped newline literals in the
+# generated Python files before validation.
+root = path.parents[1]
+for target in (
+    root / "scripts/run_codex_live_smoke.py",
+    root / "tests/test_codex_live_smoke.py",
+):
+    generated = target.read_text(encoding="utf-8")
+    generated = generated.replace('"\n"', '"\\n"')
+    generated = generated.replace("'\n'", "'\\n'")
+    target.write_text(generated, encoding="utf-8", newline="\n")
