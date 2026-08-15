@@ -39,7 +39,8 @@ Generated campaigns stay below the ignored `.eval-runs/` directory and do not di
 The harness treats environment isolation as a hard precondition, not a decorative checkbox:
 
 - the fixture uses Node.js, which is already required by the npm Codex launcher;
-- the test runner prints explicit started, pass, and fail markers;
+- the prompt requires the exact reproduction command before the first production edit and again after the fix;
+- the test runner prints explicit started, pass, and fail markers, with the failure marker on stdout for stable Codex transport;
 - a shell command returning zero after a failed test cannot become false positive evidence;
 - every discovered user skill path is disabled through per-thread session config;
 - plugin, app, memory, and JavaScript REPL feature surfaces are disabled for both variants;
