@@ -53,7 +53,9 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
     if not any(path.parts[:1] == ("skills",) and path.name == "SKILL.md" for path in relative_files):
         raise ValueError(f"{plugin['name']} has no packaged skill")
 
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    # The packages are tiny. Store entries without DEFLATE so archive bytes do not depend on
+    # platform-specific zlib builds or Python patch releases.
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
         for path in files:
             relative = path.relative_to(plugin_root).as_posix()
             info = zipfile.ZipInfo(relative, FIXED_TIME)
@@ -61,7 +63,7 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
             # Pin Unix metadata instead of using os.access(), whose X_OK behavior differs on Windows.
             info.create_system = 3
             info.external_attr = FIXED_FILE_MODE << 16
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = zipfile.ZIP_STORED
             zf.writestr(info, path.read_bytes())
     return archive, sha256(archive)
 
