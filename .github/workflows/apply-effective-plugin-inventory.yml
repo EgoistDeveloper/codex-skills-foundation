@@ -49,20 +49,32 @@ jobs:
         run: |
           python - <<'PY'
           import subprocess
-          allowed = {
+
+          expected = {
+              ".github/workflows/apply-effective-plugin-inventory.yml",
               "CHANGELOG.md",
               "docs/live-smoke.md",
+              "scripts/_apply_effective_plugin_inventory_fix.py",
               "scripts/run_codex_negative_smoke.py",
               "tests/test_codex_negative_smoke.py",
           }
-          changed = set(
-              subprocess.check_output(
-                  ["git", "status", "--short"], text=True
-              ).splitlines()
-          )
-          paths = {line[3:] for line in changed if len(line) >= 4}
-          if paths != allowed:
+          lines = subprocess.check_output(
+              ["git", "status", "--short"], text=True
+          ).splitlines()
+          paths = {line[3:] for line in lines if len(line) >= 4}
+          if paths != expected:
               raise SystemExit(f"unexpected changed paths: {sorted(paths)}")
+          deleted = {
+              line[3:]
+              for line in lines
+              if len(line) >= 4 and line[:2].strip() == "D"
+          }
+          expected_deleted = {
+              ".github/workflows/apply-effective-plugin-inventory.yml",
+              "scripts/_apply_effective_plugin_inventory_fix.py",
+          }
+          if deleted != expected_deleted:
+              raise SystemExit(f"unexpected deleted paths: {sorted(deleted)}")
           print("bounded diff: PASS")
           PY
 
@@ -72,5 +84,6 @@ jobs:
           git config user.name "EgoistDeveloper"
           git config user.email "60717140+EgoistDeveloper@users.noreply.github.com"
           git add CHANGELOG.md docs/live-smoke.md scripts/run_codex_negative_smoke.py tests/test_codex_negative_smoke.py
+          git add -u .github/workflows/apply-effective-plugin-inventory.yml scripts/_apply_effective_plugin_inventory_fix.py
           git commit -m "fix: isolate effective plugins in negative smoke"
           git push origin HEAD:fix/negative-smoke-effective-plugin-inventory
