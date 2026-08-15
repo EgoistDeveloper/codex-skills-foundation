@@ -1,0 +1,60 @@
+name: Validate provider packages
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+      - name: Install pinned provider CLIs
+        run: npm install --global @openai/codex@0.146.0 @anthropic-ai/claude-code@2.1.220
+      - name: Record provider versions
+        run: |
+          codex --version
+          claude --version
+      - name: Validate Claude marketplace and plugins strictly
+        run: |
+          claude plugin validate . --strict
+          for plugin in plugins/*; do
+            claude plugin validate "$plugin" --strict
+          done
+      - name: Smoke-test Codex marketplace and installs
+        env:
+          CODEX_HOME: ${{ runner.temp }}/codex-home
+        run: |
+          mkdir -p "$CODEX_HOME"
+          codex plugin marketplace add "$GITHUB_WORKSPACE"
+          codex plugin list
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          catalog = json.loads(Path("catalog/plugins.json").read_text())
+          marketplace = catalog["marketplace"]["name"]
+          for plugin in catalog["plugins"]:
+              subprocess.run(
+                  ["codex", "plugin", "add", f"{plugin['name']}@{marketplace}"],
+                  check=True,
+              )
+          PY
+          codex plugin list
