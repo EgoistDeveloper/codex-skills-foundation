@@ -113,8 +113,10 @@ A finalized FAIL, INVALID, or harness-error campaign is not resumable. Start a n
 The repeatability campaign proves that a tiny edit does not trigger orchestration. This complementary positive case asks whether Codex delegates when the work is genuinely separable and then keeps that delegation bounded:
 
 ```bash
-python scripts/run_codex_bounded_delegation_smoke.py --confirm-live
+python scripts/run_codex_bounded_delegation_smoke_v2.py --confirm-live
 ```
+
+Revision 1 told the candidate to use bounded delegation but also said that it *could* use one through three children. The fixture was small enough to complete directly, while the selected skill explicitly defaults to one accountable agent when delegation cost is not justified. The candidate therefore completed the task safely with zero children, and the hidden minimum-one-child gate failed. Revision 2 removes that contract mismatch: it explicitly requires the native `spawn_agent` path, requires at least one direct child, and pins Codex's stable default multi-agent v1 feature on for both variants. The core package itself is unchanged by this harness correction.
 
 The fixture contains three independent audit documents. The same read-only task is given to a plugin-disabled baseline and to a candidate with `engineering-foundation-core:bounded-orchestration` explicitly selected. The candidate passes only when:
 
@@ -127,7 +129,7 @@ The fixture contains three independent audit documents. The same read-only task 
 - no foreign skill, memory, app, plugin, or MCP contamination is observed;
 - the combined live scorer passes and the original Codex state is restored exactly.
 
-The parent thread uses a read-only sandbox. The harness also reads each spawned child thread before app-server shutdown so a nested delegation attempt cannot quietly disappear behind a cheerful final report. Apparently even delegation depth needs a customs checkpoint, but that is preferable to recursive agents breeding in the walls.
+The parent thread uses a read-only sandbox. The harness also reads each spawned child thread before app-server shutdown so a nested delegation attempt cannot quietly disappear behind a cheerful final report.
 
 ## Validity controls
 
