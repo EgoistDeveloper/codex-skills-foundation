@@ -29,6 +29,20 @@ jobs:
       - name: Apply harness and test changes
         run: python .github/automation/apply_negative_startup_isolation.py
 
+      - name: Fix generated TOML override parsing assertions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tests/test_codex_negative_smoke.py")
+          text = path.read_text(encoding="utf-8")
+          old = 'tomllib.loads("_x_ = " + plugin_override)["_x_"]'
+          new = 'tomllib.loads("_x_ = " + plugin_override.split("=", 1)[1])["_x_"]'
+          count = text.count(old)
+          if count != 2:
+              raise SystemExit(f"expected two generated TOML assertions, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
+          PY
+
       - name: Remove temporary automation files
         run: |
           rm .github/automation/apply_negative_startup_isolation.py
