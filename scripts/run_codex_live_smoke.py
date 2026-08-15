@@ -1198,7 +1198,8 @@ def main() -> int:
     auth = login_status(launchers)
     candidate_version = load_catalog()
     harness_commit = git(["rev-parse", "HEAD"], cwd=ROOT)
-    subject_commit = git(["rev-parse", "v0.2.1^{commit}"], cwd=ROOT)
+    # The installed candidate is materialized from this exact repository revision.
+    subject_commit = harness_commit
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     campaign = campaign_directory(output_root)
@@ -1219,6 +1220,8 @@ def main() -> int:
     clone_fixture(seed, candidate_workspace)
     initial_baseline = run_tests(baseline_workspace)
     initial_candidate = run_tests(candidate_workspace)
+    write_process_output(baseline_dir / "tests-before.txt", initial_baseline)
+    write_process_output(candidate_dir / "tests-before.txt", initial_candidate)
     if initial_baseline.returncode == 0 or initial_candidate.returncode == 0:
         raise HarnessError("fixture sanity check failed: seeded tests must fail before Codex runs.")
 
