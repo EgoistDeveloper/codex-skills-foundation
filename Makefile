@@ -1,4 +1,4 @@
-.PHONY: bootstrap validate render test package live-smoke live-negative-smoke
+.PHONY: bootstrap validate render test package live-smoke live-negative-smoke live-repeatability
 
 bootstrap:
 	python scripts/bootstrap.py
@@ -16,7 +16,10 @@ package:
 	python scripts/package_plugins.py --output dist
 
 live-smoke:
-	python scripts/run_codex_live_smoke.py --confirm-live
+	python scripts/run_codex_positive_smoke_isolated.py --confirm-live
 
 live-negative-smoke:
-	python scripts/run_codex_negative_smoke.py --confirm-live
+	python scripts/run_codex_negative_smoke_v4.py --confirm-live
+
+live-repeatability:
+	python scripts/run_codex_core_repeatability.py --confirm-live --repetitions 3
