@@ -25,7 +25,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import run_codex_live_smoke as base
 
 CASE_ID = "tiny-edit-skips-plan"
-CASE_REVISION = 2
+CASE_REVISION = 3
 ALLOWED_CHANGED_FILES = {"settings.json"}
 VERIFY_COMMAND = "node verify-config.mjs"
 VERIFY_START_MARKER = "EF_NEGATIVE_VERIFY_STARTED"
@@ -138,6 +138,96 @@ def installed_plugin_ids(launchers: base.CodexLaunchers) -> list[str]:
     )
 
 
+def effective_plugin_inventory_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    marketplaces = payload.get("marketplaces", [])
+    if not isinstance(marketplaces, list):
+        raise base.HarnessError("plugin/installed returned an invalid marketplaces field.")
+
+    inventory: list[dict[str, Any]] = []
+    for marketplace in marketplaces:
+        if not isinstance(marketplace, dict):
+            continue
+        marketplace_name = marketplace.get("name")
+        marketplace_path = marketplace.get("path")
+        plugins = marketplace.get("plugins", [])
+        if not isinstance(plugins, list):
+            raise base.HarnessError("plugin/installed returned an invalid plugins field.")
+        for plugin in plugins:
+            if not isinstance(plugin, dict):
+                continue
+            if plugin.get("installed") is not True and plugin.get("enabled") is not True:
+                continue
+            plugin_id = plugin.get("id")
+            plugin_name = plugin.get("name")
+            if (
+                not isinstance(plugin_id, str)
+                or not plugin_id.strip()
+                or not isinstance(plugin_name, str)
+                or not plugin_name.strip()
+                or not isinstance(marketplace_name, str)
+                or not marketplace_name.strip()
+            ):
+                raise base.HarnessError("plugin/installed returned an incomplete plugin row.")
+            inventory.append(
+                {
+                    "id": plugin_id,
+                    "name": plugin_name,
+                    "marketplace_name": marketplace_name,
+                    "marketplace_path": (
+                        marketplace_path if isinstance(marketplace_path, str) else None
+                    ),
+                    "installed": plugin.get("installed") is True,
+                    "enabled": plugin.get("enabled") is True,
+                }
+            )
+    return sorted(inventory, key=lambda item: str(item["id"]))
+
+
+def app_server_effective_plugin_inventory(
+    server: base.AppServer,
+    cwd: Path,
+) -> list[dict[str, Any]]:
+    payload = server.request(
+        "plugin/installed",
+        {
+            "cwds": [str(cwd)],
+            "installSuggestionPluginNames": [],
+        },
+    )
+    return effective_plugin_inventory_from_payload(payload)
+
+
+def app_server_plugin_mcp_servers(
+    server: base.AppServer,
+    inventory: list[dict[str, Any]],
+    *,
+    known_plugin_ids: set[str],
+) -> dict[str, list[str]]:
+    discovered: dict[str, list[str]] = {}
+    for item in inventory:
+        plugin_id = str(item["id"])
+        if plugin_id == base.PLUGIN_ID or plugin_id in known_plugin_ids:
+            continue
+        params: dict[str, Any] = {"pluginName": str(item["name"])}
+        marketplace_path = item.get("marketplace_path")
+        if isinstance(marketplace_path, str) and marketplace_path:
+            params["marketplacePath"] = marketplace_path
+        else:
+            params["remoteMarketplaceName"] = str(item["marketplace_name"])
+        response = server.request("plugin/read", params)
+        plugin = response.get("plugin")
+        if not isinstance(plugin, dict):
+            raise base.HarnessError(f"plugin/read returned no plugin detail for {plugin_id!r}.")
+        mcp_servers = plugin.get("mcpServers", [])
+        if not isinstance(mcp_servers, list) or not all(
+            isinstance(name, str) and name for name in mcp_servers
+        ):
+            raise base.HarnessError(
+                f"plugin/read returned an invalid MCP server list for {plugin_id!r}."
+            )
+        discovered[plugin_id] = sorted(set(mcp_servers))
+    return discovered
+
 
 def toml_bool(value: bool) -> str:
     return "true" if value else "false"
@@ -152,12 +242,25 @@ def toml_dotted_key_segment(value: str) -> str:
     return json.dumps(value, ensure_ascii=True)
 
 
-def plugin_table_override(plugin_states: dict[str, bool]) -> str:
-    entries = ", ".join(
-        f"{json.dumps(plugin_id, ensure_ascii=True)} = {{ enabled = {toml_bool(enabled)} }}"
-        for plugin_id, enabled in sorted(plugin_states.items())
-    )
-    return f"plugins={{ {entries} }}"
+def plugin_table_override(
+    plugin_states: dict[str, bool],
+    plugin_mcp_servers: dict[str, list[str]] | None = None,
+) -> str:
+    mcp_by_plugin = plugin_mcp_servers or {}
+    entries: list[str] = []
+    for plugin_id, enabled in sorted(plugin_states.items()):
+        fields = [f"enabled = {toml_bool(enabled)}"]
+        mcp_names = sorted(set(mcp_by_plugin.get(plugin_id, [])))
+        if mcp_names:
+            mcp_entries = ", ".join(
+                f"{json.dumps(name, ensure_ascii=True)} = {{ enabled = false }}"
+                for name in mcp_names
+            )
+            fields.append(f"mcp_servers = {{ {mcp_entries} }}")
+        entries.append(
+            f"{json.dumps(plugin_id, ensure_ascii=True)} = {{ {', '.join(fields)} }}"
+        )
+    return f"plugins={{ {', '.join(entries)} }}"
 
 
 def build_isolated_app_server_command(
@@ -165,6 +268,7 @@ def build_isolated_app_server_command(
     launchers: base.CodexLaunchers,
     installed_plugin_ids: list[str],
     mcp_server_names: list[str],
+    plugin_mcp_servers: dict[str, list[str]] | None = None,
     plugins_enabled: bool,
     enabled_plugin_id: str | None,
 ) -> tuple[tuple[str, ...], list[str]]:
@@ -196,7 +300,7 @@ def build_isolated_app_server_command(
         "memories.dedicated_tools=false",
     ]
     if plugin_states:
-        overrides.append(plugin_table_override(plugin_states))
+        overrides.append(plugin_table_override(plugin_states, plugin_mcp_servers))
     overrides.extend(
         f"mcp_servers.{toml_dotted_key_segment(name)}.enabled=false"
         for name in mcp_names
@@ -257,6 +361,7 @@ def build_candidate_session_config(
     installed_plugin_root: Path,
     mcp_server_names: list[str],
     installed_plugin_ids: list[str],
+    plugin_mcp_servers: dict[str, list[str]],
 ) -> tuple[dict[str, Any], dict[str, str], list[str], list[str]]:
     discovered_core = core_skill_paths(
         skills,
@@ -289,10 +394,18 @@ def build_candidate_session_config(
     config["features"]["recommended_plugins"] = False
     config["features"]["plugin_sharing"] = False
     config["features"]["code_mode"] = False
-    config["plugins"] = {
-        plugin_id: {"enabled": plugin_id == base.PLUGIN_ID}
-        for plugin_id in sorted(set(installed_plugin_ids) | {base.PLUGIN_ID})
-    }
+    config["plugins"] = {}
+    for plugin_id in sorted(set(installed_plugin_ids) | {base.PLUGIN_ID}):
+        plugin_config: dict[str, Any] = {
+            "enabled": plugin_id == base.PLUGIN_ID,
+        }
+        mcp_names = sorted(set(plugin_mcp_servers.get(plugin_id, [])))
+        if mcp_names:
+            plugin_config["mcp_servers"] = {
+                name: {"enabled": False}
+                for name in mcp_names
+            }
+        config["plugins"][plugin_id] = plugin_config
     config["memories"] = {
         "generate_memories": False,
         "use_memories": False,
@@ -376,6 +489,9 @@ def evaluate_run(
     node_executable: str,
     disabled_skill_paths: list[str],
     disabled_plugin_ids: list[str],
+    effective_plugin_ids: list[str],
+    hidden_plugin_ids: list[str],
+    disabled_plugin_mcp_servers: dict[str, list[str]],
     disabled_mcp_server_names: list[str],
     startup_config_overrides: list[str],
     exposed_core_skills: dict[str, str],
@@ -512,6 +628,12 @@ def evaluate_run(
         "environment_pass": environment_pass,
         "environment_findings": environment_findings,
         "disabled_plugin_ids": sorted(set(disabled_plugin_ids)),
+        "effective_plugin_ids": sorted(set(effective_plugin_ids)),
+        "hidden_plugin_ids": sorted(set(hidden_plugin_ids)),
+        "disabled_plugin_mcp_servers": {
+            plugin_id: sorted(set(names))
+            for plugin_id, names in sorted(disabled_plugin_mcp_servers.items())
+        },
         "disabled_mcp_server_names": sorted(set(disabled_mcp_server_names)),
         "startup_config_overrides": list(startup_config_overrides),
         "token_usage": token_usage,
@@ -651,6 +773,9 @@ def compact_evaluation(evaluation: NegativeEvaluation | None) -> dict[str, Any] 
         "changed_paths": artifact.get("changed_paths", []),
         "exact_change_pass": artifact.get("exact_change_pass"),
         "disabled_plugin_ids": artifact.get("disabled_plugin_ids", []),
+        "effective_plugin_ids": artifact.get("effective_plugin_ids", []),
+        "hidden_plugin_ids": artifact.get("hidden_plugin_ids", []),
+        "disabled_plugin_mcp_servers": artifact.get("disabled_plugin_mcp_servers", {}),
         "disabled_mcp_server_names": artifact.get("disabled_mcp_server_names", []),
         "startup_config_overrides": artifact.get("startup_config_overrides", []),
         "observed_core_skill_reads": artifact.get("observed_core_skill_reads", []),
@@ -716,6 +841,15 @@ def print_failure_diagnostics(path: Path, payload: dict[str, Any]) -> None:
         disabled_plugins = candidate.get("disabled_plugin_ids", [])
         if disabled_plugins:
             print("  disabled-plugins: " + ", ".join(str(item) for item in disabled_plugins))
+        hidden_plugins = candidate.get("hidden_plugin_ids", [])
+        if hidden_plugins:
+            print("  hidden-plugins: " + ", ".join(str(item) for item in hidden_plugins))
+        plugin_mcp_servers = candidate.get("disabled_plugin_mcp_servers", {})
+        if plugin_mcp_servers:
+            print(
+                "  disabled-plugin-mcps: "
+                + json.dumps(plugin_mcp_servers, ensure_ascii=False, sort_keys=True)
+            )
         disabled_mcp_servers = candidate.get("disabled_mcp_server_names", [])
         if disabled_mcp_servers:
             print(
@@ -920,6 +1054,9 @@ def main() -> int:
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=baseline_disabled_skills,
                 disabled_plugin_ids=baseline_plugin_ids,
+                effective_plugin_ids=[],
+                hidden_plugin_ids=[],
+                disabled_plugin_mcp_servers={},
                 disabled_mcp_server_names=mcp_names,
                 startup_config_overrides=baseline_startup_overrides,
                 exposed_core_skills={},
@@ -927,7 +1064,52 @@ def main() -> int:
 
             print("[2/2] Installing core and running unprompted tiny-edit candidate...")
             installed_root = guard.install_candidate()
-            candidate_plugin_ids = installed_plugin_ids(launchers)
+            candidate_cli_plugin_ids = installed_plugin_ids(launchers)
+            (
+                candidate_inventory_command,
+                _,
+            ) = build_isolated_app_server_command(
+                launchers=launchers,
+                installed_plugin_ids=candidate_cli_plugin_ids,
+                mcp_server_names=mcp_names,
+                plugin_mcp_servers={},
+                plugins_enabled=True,
+                enabled_plugin_id=base.PLUGIN_ID,
+            )
+            with base.AppServer(
+                command=candidate_inventory_command,
+                node_executable=launchers.node_executable,
+                cwd=candidate_workspace,
+                trace_path=preflight_dir / "candidate-plugin-inventory-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as candidate_inventory_server:
+                candidate_inventory_home = candidate_inventory_server.initialize()
+                candidate_effective_inventory = app_server_effective_plugin_inventory(
+                    candidate_inventory_server,
+                    candidate_workspace,
+                )
+                candidate_hidden_plugin_mcps = app_server_plugin_mcp_servers(
+                    candidate_inventory_server,
+                    candidate_effective_inventory,
+                    known_plugin_ids=set(candidate_cli_plugin_ids) | {base.PLUGIN_ID},
+                )
+            if base.normalized_path(candidate_inventory_home) != base.normalized_path(codex_home):
+                raise base.HarnessError(
+                    "candidate plugin inventory used a different Codex home directory."
+                )
+            candidate_effective_plugin_ids = sorted(
+                {str(item["id"]) for item in candidate_effective_inventory}
+            )
+            candidate_plugin_ids = sorted(
+                set(candidate_cli_plugin_ids)
+                | set(candidate_effective_plugin_ids)
+                | {base.PLUGIN_ID}
+            )
+            candidate_hidden_plugin_ids = sorted(
+                set(candidate_effective_plugin_ids)
+                - set(candidate_cli_plugin_ids)
+                - {base.PLUGIN_ID}
+            )
             (
                 candidate_app_server_command,
                 candidate_startup_overrides,
@@ -935,6 +1117,7 @@ def main() -> int:
                 launchers=launchers,
                 installed_plugin_ids=candidate_plugin_ids,
                 mcp_server_names=mcp_names,
+                plugin_mcp_servers=candidate_hidden_plugin_mcps,
                 plugins_enabled=True,
                 enabled_plugin_id=base.PLUGIN_ID,
             )
@@ -959,6 +1142,7 @@ def main() -> int:
                 installed_plugin_root=installed_root,
                 mcp_server_names=mcp_names,
                 installed_plugin_ids=candidate_plugin_ids,
+                plugin_mcp_servers=candidate_hidden_plugin_mcps,
             )
             candidate_turn, candidate_home = run_live_variant(
                 variant="candidate",
@@ -995,6 +1179,9 @@ def main() -> int:
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=candidate_disabled_skills,
                 disabled_plugin_ids=candidate_disabled_plugins,
+                effective_plugin_ids=candidate_effective_plugin_ids,
+                hidden_plugin_ids=candidate_hidden_plugin_ids,
+                disabled_plugin_mcp_servers=candidate_hidden_plugin_mcps,
                 disabled_mcp_server_names=mcp_names,
                 startup_config_overrides=candidate_startup_overrides,
                 exposed_core_skills=exposed_core,
