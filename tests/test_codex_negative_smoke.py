@@ -26,6 +26,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
         self.assertIn(module.VERIFY_COMMAND, module.NEGATIVE_PROMPT)
         for bare_name in module.FORBIDDEN_SKILL_BARE_NAMES:
             self.assertNotIn(bare_name, module.NEGATIVE_PROMPT)
+        self.assertEqual(module.CASE_REVISION, 2)
 
     def test_fixture_fails_then_passes_after_exact_literal_edit(self) -> None:
         node = shutil.which("node") or shutil.which("node.exe")
@@ -112,6 +113,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
         command, overrides = module.build_isolated_app_server_command(
             launchers=launchers,
             installed_plugin_ids=[base.PLUGIN_ID, foreign_plugin],
+            mcp_server_names=["fable-advisor-python3", "server.with.dot"],
             plugins_enabled=True,
             enabled_plugin_id=base.PLUGIN_ID,
         )
@@ -120,6 +122,8 @@ class CodexNegativeSmokeTests(unittest.TestCase):
         self.assertIn("features.plugins=true", overrides)
         self.assertIn("features.remote_plugin=false", overrides)
         self.assertIn("features.apps=false", overrides)
+        self.assertIn("mcp_servers.fable-advisor-python3.enabled=false", overrides)
+        self.assertIn('mcp_servers."server.with.dot".enabled=false', overrides)
         plugin_override = next(value for value in overrides if value.startswith("plugins="))
         plugin_table = tomllib.loads("_x_ = " + plugin_override.split("=", 1)[1])["_x_"]
         self.assertTrue(plugin_table[base.PLUGIN_ID]["enabled"])
@@ -139,11 +143,13 @@ class CodexNegativeSmokeTests(unittest.TestCase):
         _, overrides = module.build_isolated_app_server_command(
             launchers=launchers,
             installed_plugin_ids=[foreign_plugin],
+            mcp_server_names=["fable-advisor-python3"],
             plugins_enabled=False,
             enabled_plugin_id=None,
         )
         self.assertIn("features.plugins=false", overrides)
         self.assertIn("features.remote_plugin=false", overrides)
+        self.assertIn("mcp_servers.fable-advisor-python3.enabled=false", overrides)
         plugin_override = next(value for value in overrides if value.startswith("plugins="))
         plugin_table = tomllib.loads("_x_ = " + plugin_override.split("=", 1)[1])["_x_"]
         self.assertFalse(plugin_table[foreign_plugin]["enabled"])
@@ -274,6 +280,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                 node_executable=node,
                 disabled_skill_paths=[],
                 disabled_plugin_ids=[],
+                disabled_mcp_server_names=["fable-advisor-python3"],
                 startup_config_overrides=["features.remote_plugin=false"],
                 exposed_core_skills=exposed,
             )
@@ -297,6 +304,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                 ],
                 "changed_paths": ["settings.json"],
                 "disabled_plugin_ids": ["fable-advisor@foreign-marketplace"],
+                "disabled_mcp_server_names": ["fable-advisor-python3"],
                 "token_usage": {},
             },
         )
@@ -317,6 +325,10 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             self.assertEqual(
                 payload["candidate"]["disabled_plugin_ids"],
                 ["fable-advisor@foreign-marketplace"],
+            )
+            self.assertEqual(
+                payload["candidate"]["disabled_mcp_server_names"],
+                ["fable-advisor-python3"],
             )
             self.assertIn(
                 "fable-advisor-python3",

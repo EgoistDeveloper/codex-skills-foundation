@@ -56,7 +56,7 @@ This campaign asks the opposite question: when the core plugin is naturally expo
 python scripts/run_codex_negative_smoke.py --confirm-live
 ```
 
-The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign installed plugins are disabled before each app-server process starts and again at the thread layer; the remote plugin catalog, foreign user skills, apps, memories, code mode, and configured MCP servers remain disabled.
+The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign installed plugins and directly configured MCP servers are disabled before each app-server process starts and again at the thread layer; the remote plugin catalog, foreign user skills, apps, memories, and code mode remain disabled.
 
 The negative campaign passes only when:
 
@@ -77,7 +77,7 @@ The harnesses treat environment isolation as a hard precondition, not a decorati
 - fixtures use Node.js, already required by the npm Codex launcher;
 - runners print explicit started, pass, and fail markers on stdout;
 - a shell command returning zero after a failed verification cannot become false-positive evidence;
-- app-server startup overrides disable the remote plugin catalog and every foreign installed plugin before plugin capabilities are loaded;
+- app-server startup overrides disable the remote plugin catalog, every foreign installed plugin, and every directly configured MCP server before capabilities are loaded;
 - discovered foreign skill paths are also disabled through per-thread config;
 - apps, memories, JavaScript REPL, and configured MCP servers are disabled;
 - any ready MCP server, foreign skill-file read, or Codex-memory read marks a campaign `INVALID` and skips scoring;
