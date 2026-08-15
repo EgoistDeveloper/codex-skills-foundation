@@ -38,12 +38,15 @@ This record separates deterministic repository/provider validation from authenti
 | `engineering-foundation-cloud-0.2.1.zip` | `4fe88385d98e3ef2b36aa2b304b891c76db61db99f88480e211efb6b7a575982` |
 | `engineering-foundation-authoring-0.2.1.zip` | `cbd7906aa03af50e850b253f4ecf17ced202b126f4fa33ba120036f5f196f07b` |
 
-## Post-release core 0.2.2 live smoke
+## Post-release core 0.2.2 live smokes
 
-After the `systematic-debugging` reproduction-gate repair, one authenticated isolated Codex CLI campaign passed all task, safety, explicit activation, evidence, and environment-isolation gates. The scorer reported `PASS` with `COVERAGE_NOT_ASSESSED`; this is partial live evidence rather than release qualification.
+After the `systematic-debugging` reproduction-gate repair, one authenticated isolated Codex CLI explicit-positive campaign passed all task, safety, activation, evidence, and environment-isolation gates. A later authenticated isolated negative-trigger campaign exposed the core plugin naturally on a tiny edit and also passed task, safety, non-activation, evidence, and environment-isolation gates with zero core skill reads and zero spawned agents.
 
-See [`live-evidence/codex-cli-core-0.2.2-2026-08-15.md`](live-evidence/codex-cli-core-0.2.2-2026-08-15.md) for campaign identity, metrics, and limitations.
+Both scorers reported `PASS` with `COVERAGE_NOT_ASSESSED`; these are partial live evidence rather than release qualification.
+
+- [`live-evidence/codex-cli-core-0.2.2-2026-08-15.md`](live-evidence/codex-cli-core-0.2.2-2026-08-15.md) records the explicit-positive debugging campaign.
+- [`live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md`](live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md) records the natural-exposure tiny-edit campaign and its runtime MCP-isolation preflight.
 
 ## Evidence boundary
 
-The released `v0.2.1` artifacts remain statically validated, provider-package validated, and cross-platform reproducible. A later `engineering-foundation-core` `0.2.2` candidate now has one passing authenticated Codex CLI explicit-positive smoke. Negative triggers, implicit activation, repeated runs, ChatGPT/Codex desktop, Codex Cloud, Claude Code, and an Agent Plugins reference client remain unassessed. The repository must therefore not describe either the release or the package family as fully live-model-qualified.
+The released `v0.2.1` artifacts remain statically validated, provider-package validated, and cross-platform reproducible. A later `engineering-foundation-core` `0.2.2` candidate now has one passing authenticated Codex CLI explicit-positive smoke and one passing authenticated Codex CLI negative-trigger smoke. Repeated runs, broader release-critical cases, ChatGPT/Codex desktop, Codex Cloud, Claude Code, and an Agent Plugins reference client remain unassessed. The repository must therefore not describe either the release or the package family as fully live-model-qualified.
