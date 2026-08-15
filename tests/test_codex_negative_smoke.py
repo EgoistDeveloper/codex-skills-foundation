@@ -26,7 +26,53 @@ class CodexNegativeSmokeTests(unittest.TestCase):
         self.assertIn(module.VERIFY_COMMAND, module.NEGATIVE_PROMPT)
         for bare_name in module.FORBIDDEN_SKILL_BARE_NAMES:
             self.assertNotIn(bare_name, module.NEGATIVE_PROMPT)
-        self.assertEqual(module.CASE_REVISION, 2)
+        self.assertEqual(module.CASE_REVISION, 3)
+
+
+    def test_effective_plugin_inventory_includes_hidden_curated_plugins(self) -> None:
+        payload = {
+            "marketplaces": [
+                {
+                    "name": "openai-api-curated",
+                    "path": "C:/codex/curated/marketplace.json",
+                    "plugins": [
+                        {
+                            "id": "fable-advisor@openai-api-curated",
+                            "name": "fable-advisor",
+                            "installed": True,
+                            "enabled": True,
+                        },
+                        {
+                            "id": "suggestion@openai-api-curated",
+                            "name": "suggestion",
+                            "installed": False,
+                            "enabled": False,
+                        },
+                    ],
+                },
+                {
+                    "name": base.MARKETPLACE_NAME,
+                    "path": "C:/foundation/marketplace.json",
+                    "plugins": [
+                        {
+                            "id": base.PLUGIN_ID,
+                            "name": base.PLUGIN_NAME,
+                            "installed": True,
+                            "enabled": True,
+                        }
+                    ],
+                },
+            ]
+        }
+        inventory = module.effective_plugin_inventory_from_payload(payload)
+        self.assertEqual(
+            [item["id"] for item in inventory],
+            [base.PLUGIN_ID, "fable-advisor@openai-api-curated"],
+        )
+        self.assertEqual(
+            inventory[1]["marketplace_path"],
+            "C:/codex/curated/marketplace.json",
+        )
 
     def test_fixture_fails_then_passes_after_exact_literal_edit(self) -> None:
         node = shutil.which("node") or shutil.which("node.exe")
@@ -82,6 +128,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                     installed_plugin_root=root,
                     mcp_server_names=["memory"],
                     installed_plugin_ids=[base.PLUGIN_ID, foreign_plugin],
+                    plugin_mcp_servers={foreign_plugin: ["fable-advisor-python3"]},
                 )
             )
             self.assertTrue(config["features"]["plugins"])
@@ -99,6 +146,10 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             self.assertEqual(disabled_plugins, [foreign_plugin])
             self.assertTrue(config["plugins"][base.PLUGIN_ID]["enabled"])
             self.assertFalse(config["plugins"][foreign_plugin]["enabled"])
+            self.assertFalse(
+                config["plugins"][foreign_plugin]["mcp_servers"]
+                ["fable-advisor-python3"]["enabled"]
+            )
 
 
     def test_startup_command_disables_remote_catalog_and_foreign_plugins(self) -> None:
@@ -114,6 +165,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             launchers=launchers,
             installed_plugin_ids=[base.PLUGIN_ID, foreign_plugin],
             mcp_server_names=["fable-advisor-python3", "server.with.dot"],
+            plugin_mcp_servers={foreign_plugin: ["fable-advisor-python3"]},
             plugins_enabled=True,
             enabled_plugin_id=base.PLUGIN_ID,
         )
@@ -128,6 +180,10 @@ class CodexNegativeSmokeTests(unittest.TestCase):
         plugin_table = tomllib.loads("_x_ = " + plugin_override.split("=", 1)[1])["_x_"]
         self.assertTrue(plugin_table[base.PLUGIN_ID]["enabled"])
         self.assertFalse(plugin_table[foreign_plugin]["enabled"])
+        self.assertFalse(
+            plugin_table[foreign_plugin]["mcp_servers"]
+            ["fable-advisor-python3"]["enabled"]
+        )
         for override in overrides:
             self.assertIn(override, command)
 
@@ -144,6 +200,7 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             launchers=launchers,
             installed_plugin_ids=[foreign_plugin],
             mcp_server_names=["fable-advisor-python3"],
+            plugin_mcp_servers={},
             plugins_enabled=False,
             enabled_plugin_id=None,
         )
@@ -280,6 +337,9 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                 node_executable=node,
                 disabled_skill_paths=[],
                 disabled_plugin_ids=[],
+                effective_plugin_ids=[base.PLUGIN_ID],
+                hidden_plugin_ids=[],
+                disabled_plugin_mcp_servers={},
                 disabled_mcp_server_names=["fable-advisor-python3"],
                 startup_config_overrides=["features.remote_plugin=false"],
                 exposed_core_skills=exposed,
@@ -303,7 +363,15 @@ class CodexNegativeSmokeTests(unittest.TestCase):
                     "MCP servers became ready: fable-advisor-python3"
                 ],
                 "changed_paths": ["settings.json"],
-                "disabled_plugin_ids": ["fable-advisor@foreign-marketplace"],
+                "disabled_plugin_ids": ["fable-advisor@openai-api-curated"],
+                "effective_plugin_ids": [
+                    base.PLUGIN_ID,
+                    "fable-advisor@openai-api-curated",
+                ],
+                "hidden_plugin_ids": ["fable-advisor@openai-api-curated"],
+                "disabled_plugin_mcp_servers": {
+                    "fable-advisor@openai-api-curated": ["fable-advisor-python3"],
+                },
                 "disabled_mcp_server_names": ["fable-advisor-python3"],
                 "token_usage": {},
             },
@@ -324,7 +392,15 @@ class CodexNegativeSmokeTests(unittest.TestCase):
             self.assertEqual(payload["outcome"], "INVALID")
             self.assertEqual(
                 payload["candidate"]["disabled_plugin_ids"],
-                ["fable-advisor@foreign-marketplace"],
+                ["fable-advisor@openai-api-curated"],
+            )
+            self.assertEqual(
+                payload["candidate"]["hidden_plugin_ids"],
+                ["fable-advisor@openai-api-curated"],
+            )
+            self.assertEqual(
+                payload["candidate"]["disabled_plugin_mcp_servers"],
+                {"fable-advisor@openai-api-curated": ["fable-advisor-python3"]},
             )
             self.assertEqual(
                 payload["candidate"]["disabled_mcp_server_names"],

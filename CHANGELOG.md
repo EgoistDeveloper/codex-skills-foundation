@@ -18,6 +18,7 @@
 - Isolated negative-smoke candidates from every foreign installed plugin so plugin-contributed MCP servers cannot contaminate the campaign, and emit automatic diagnostics for every non-PASS outcome.
 - Moved negative-smoke plugin isolation to app-server startup, disabled the remote plugin catalog for the campaign, and retained thread-level isolation as defense in depth.
 - Moved configured MCP-server isolation to app-server startup after thread-scoped disablement proved too late for eager MCP initialization.
+- Added an app-server effective-plugin inventory pass so API-curated plugins omitted by the CLI installed list, plus their plugin-provided MCP servers, are disabled before measured negative-smoke execution.
 
 ## 0.2.1 - 2026-08-15
 

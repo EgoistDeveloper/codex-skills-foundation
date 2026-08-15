@@ -56,7 +56,7 @@ This campaign asks the opposite question: when the core plugin is naturally expo
 python scripts/run_codex_negative_smoke.py --confirm-live
 ```
 
-The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign installed plugins and directly configured MCP servers are disabled before each app-server process starts and again at the thread layer; the remote plugin catalog, foreign user skills, apps, memories, and code mode remain disabled.
+The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign installed plugins, API-curated or otherwise effective installed plugins discovered through app-server, and directly configured MCP servers are disabled before the measured candidate app-server starts and again at the thread layer; plugin-provided MCP servers from hidden effective plugins are explicitly disabled as defense in depth. The remote plugin catalog, foreign user skills, apps, memories, and code mode remain disabled.
 
 The negative campaign passes only when:
 
@@ -77,7 +77,8 @@ The harnesses treat environment isolation as a hard precondition, not a decorati
 - fixtures use Node.js, already required by the npm Codex launcher;
 - runners print explicit started, pass, and fail markers on stdout;
 - a shell command returning zero after a failed verification cannot become false-positive evidence;
-- app-server startup overrides disable the remote plugin catalog, every foreign installed plugin, and every directly configured MCP server before capabilities are loaded;
+- an unmeasured app-server inventory phase calls `plugin/installed` and `plugin/read` so API-curated or otherwise hidden effective plugins and their MCP server names are known before the measured candidate starts;
+- app-server startup overrides disable the remote plugin catalog, every foreign effective plugin, every discovered plugin-provided MCP server, and every directly configured MCP server before capabilities are loaded;
 - discovered foreign skill paths are also disabled through per-thread config;
 - apps, memories, JavaScript REPL, and configured MCP servers are disabled;
 - any ready MCP server, foreign skill-file read, or Codex-memory read marks a campaign `INVALID` and skips scoring;
