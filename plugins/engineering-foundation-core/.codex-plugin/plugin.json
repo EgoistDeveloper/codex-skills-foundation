@@ -1,6 +1,6 @@
 {
   "name": "engineering-foundation-core",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
   "author": {
     "name": "EgoistDeveloper",

@@ -12,6 +12,8 @@
 - Added per-thread isolation for plugins, apps, memories, MCP servers, and ambient user skills.
 - Rejected shell-chain false positives and write `summary.json` for PASS, FAIL, INVALID, and harness errors.
 - Added cached, uncached, output, reasoning, duration, and environment-validity metrics.
+- Require the core debugging skill to observe a runnable reproduction before production edits and to stop boundedly when reproduction is blocked.
+- Emit fixture failure markers on stdout so failed Codex commands remain machine-detectable across clients.
 
 ## 0.2.1 - 2026-08-15
 

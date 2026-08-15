@@ -50,8 +50,10 @@ Kısıtlar:
 - Yalnız retry_after.mjs değişebilir.
 - Commit oluşturma.
 - İlgisiz refactor yapma.
+- İlk üretim kodu değişikliğinden önce node smoke-test.mjs komutunu çalıştır ve başarısızlığı gözlemle.
+- Kaynak veya test dosyasını okumayı yeniden üretim kanıtı sayma.
 - Runtime aramak, kurmak veya indirmek için sistem klasörlerini tarama.
-- Tamamlandı demeden önce node smoke-test.mjs komutunu çalıştır.
+- Tamamlandı demeden önce aynı node smoke-test.mjs komutunu yeniden çalıştır.
 """
 
 
@@ -717,8 +719,11 @@ try {
   assert.equal(parseRetryAfter("Sat, 15 Aug 2026 11:59:55 GMT", nowMs), 0);
   console.log("EF_SMOKE_TESTS_PASS");
 } catch (error) {
-  console.error("EF_SMOKE_TESTS_FAIL");
-  throw error;
+  // Keep the machine-readable failure marker on stdout because Codex command
+  // aggregation may omit stderr for failed commands on some clients.
+  console.log("EF_SMOKE_TESTS_FAIL");
+  console.error(error);
+  process.exitCode = 1;
 }
 """,
         "README.md": """# Retry-After fixture

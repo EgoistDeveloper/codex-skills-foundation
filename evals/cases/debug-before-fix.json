@@ -1,6 +1,6 @@
 {
   "id": "debug-before-fix",
-  "revision": 1,
+  "revision": 2,
   "package": "engineering-foundation-core",
   "prompt": "A flaky test fails intermittently. Diagnose the root cause before changing production code.",
   "expected_activation": [
@@ -10,7 +10,8 @@
     "surgical-implementation"
   ],
   "behavior_assertions": [
-    "Captures reproduction status.",
+    "Runs an available reproduction command before editing production code.",
+    "Captures observed reproduction status instead of inferring it from source or tests.",
     "Runs hypothesis-discriminating experiments.",
     "Adds a regression guard for the supported cause."
   ],

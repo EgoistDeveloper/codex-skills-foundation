@@ -39,6 +39,17 @@ class SkillTests(unittest.TestCase):
         for path in ROOT.glob("plugins/*/skills/*/SKILL.md"):
             self.assertLessEqual(len(path.read_text(encoding="utf-8").splitlines()), 500, path)
 
+    def test_systematic_debugging_has_a_pre_edit_reproduction_gate(self) -> None:
+        path = (
+            ROOT
+            / "plugins/engineering-foundation-core/skills/systematic-debugging/SKILL.md"
+        )
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("before editing production code", text)
+        self.assertIn("is not reproduction", text)
+        self.assertIn("Do not scan system directories", text)
+        self.assertIn("rerun the same reproduction command", text)
+
     def test_no_portable_allowed_tools(self) -> None:
         for path in ROOT.glob("plugins/*/skills/*/SKILL.md"):
             self.assertNotIn("allowed-tools:", path.read_text(encoding="utf-8"), path)

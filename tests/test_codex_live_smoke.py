@@ -24,6 +24,11 @@ class CodexLiveSmokeTests(unittest.TestCase):
         with self.assertRaises(module.HarnessError):
             module.parse_version("Codex unknown")
 
+    def test_live_prompt_requires_pre_edit_reproduction(self) -> None:
+        self.assertIn("İlk üretim kodu değişikliğinden önce", module.LIVE_PROMPT)
+        self.assertIn(module.TEST_COMMAND, module.LIVE_PROMPT)
+        self.assertIn("yeniden üretim kanıtı sayma", module.LIVE_PROMPT)
+
     def test_fixture_starts_failing_and_passes_after_supported_fix(self) -> None:
         node = shutil.which("node") or shutil.which("node.exe")
         if not node:
@@ -36,6 +41,7 @@ class CodexLiveSmokeTests(unittest.TestCase):
             before_text = before.stdout + before.stderr
             self.assertIn(module.TEST_START_MARKER, before_text)
             self.assertIn(module.TEST_FAIL_MARKER, before_text)
+            self.assertIn(module.TEST_FAIL_MARKER, before.stdout)
 
             source = (seed / "retry_after.mjs").read_text(encoding="utf-8")
             source = source.replace("Number(candidate) / 1000", "Number(candidate)")
