@@ -34,8 +34,12 @@ jobs:
       - name: Replace tree with audited source
         shell: bash
         run: |
+          cp -a .github/workflows /tmp/staged-workflows
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           tar -xJf /tmp/final-source.tar.xz
+          rm -rf .github/workflows
+          mkdir -p .github
+          cp -a /tmp/staged-workflows .github/workflows
 
       - name: Install validation dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
