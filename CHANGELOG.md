@@ -15,6 +15,7 @@
 - Require the core debugging skill to observe a runnable reproduction before production edits and to stop boundedly when reproduction is blocked.
 - Emit fixture failure markers on stdout so failed Codex commands remain machine-detectable across clients.
 - Added an authenticated negative-trigger smoke that exposes the core plugin naturally and rejects planning, orchestration, subagents, unrelated edits, or ambient-capability contamination on a one-literal configuration task.
+- Isolated negative-smoke candidates from every foreign installed plugin so plugin-contributed MCP servers cannot contaminate the campaign, and emit automatic diagnostics for every non-PASS outcome.
 
 ## 0.2.1 - 2026-08-15
 

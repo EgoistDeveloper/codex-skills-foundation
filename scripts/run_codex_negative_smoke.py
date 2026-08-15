@@ -122,6 +122,22 @@ def combined_output(result: subprocess.CompletedProcess[str]) -> str:
     return "\n".join(part for part in (result.stdout, result.stderr) if part)
 
 
+def installed_plugin_ids(launchers: base.CodexLaunchers) -> list[str]:
+    payload = base.json_cli(launchers, "plugin", "list", "--json")
+    rows = payload.get("installed", [])
+    if not isinstance(rows, list):
+        raise base.HarnessError("Codex plugin list has an unexpected shape.")
+    return sorted(
+        {
+            str(row["pluginId"])
+            for row in rows
+            if isinstance(row, dict)
+            and isinstance(row.get("pluginId"), str)
+            and str(row["pluginId"]).strip()
+        }
+    )
+
+
 def completed_verify_commands(turn: base.LiveTurn) -> list[base.CommandEvidence]:
     expected = " ".join(VERIFY_COMMAND.lower().split())
     return [
@@ -169,7 +185,8 @@ def build_candidate_session_config(
     skills: list[dict[str, Any]],
     installed_plugin_root: Path,
     mcp_server_names: list[str],
-) -> tuple[dict[str, Any], dict[str, str], list[str]]:
+    installed_plugin_ids: list[str],
+) -> tuple[dict[str, Any], dict[str, str], list[str], list[str]]:
     discovered_core = core_skill_paths(
         skills,
         installed_plugin_root=installed_plugin_root,
@@ -183,10 +200,25 @@ def build_candidate_session_config(
         disabled_skill_paths=foreign_paths,
         mcp_server_names=mcp_server_names,
     )
-    # Unlike the explicit-positive smoke, this campaign must expose the plugin
-    # router naturally. All foreign skills remain disabled by exact path.
+    if base.PLUGIN_ID not in installed_plugin_ids:
+        raise base.HarnessError(
+            f"installed plugin inventory did not contain {base.PLUGIN_ID!r}."
+        )
+    foreign_plugin_ids = sorted(
+        plugin_id
+        for plugin_id in set(installed_plugin_ids)
+        if plugin_id != base.PLUGIN_ID
+    )
+
+    # Unlike the explicit-positive smoke, this campaign must expose the core
+    # plugin router naturally. Disable every other installed plugin at the
+    # thread layer so foreign plugin-contributed MCP servers cannot start.
     config["features"]["plugins"] = True
-    return config, discovered_core, foreign_paths
+    config["plugins"] = {
+        plugin_id: {"enabled": plugin_id == base.PLUGIN_ID}
+        for plugin_id in sorted(set(installed_plugin_ids) | {base.PLUGIN_ID})
+    }
+    return config, discovered_core, foreign_paths, foreign_plugin_ids
 
 
 def referenced_skill_names(
@@ -263,6 +295,7 @@ def evaluate_run(
     client_version: str,
     node_executable: str,
     disabled_skill_paths: list[str],
+    disabled_plugin_ids: list[str],
     exposed_core_skills: dict[str, str],
 ) -> NegativeEvaluation:
     after_verification = run_verification(
@@ -396,6 +429,7 @@ def evaluate_run(
         "evidence_pass": evidence_pass,
         "environment_pass": environment_pass,
         "environment_findings": environment_findings,
+        "disabled_plugin_ids": sorted(set(disabled_plugin_ids)),
         "token_usage": token_usage,
         "tokens": token_usage["total_tokens"],
         "tool_calls": tool_calls,
@@ -516,6 +550,83 @@ def print_comparison(
         f"  scorer   : status={score.get('status')} "
         f"qualification={score.get('release_qualification')}"
     )
+
+
+def compact_evaluation(evaluation: NegativeEvaluation | None) -> dict[str, Any] | None:
+    if evaluation is None:
+        return None
+    artifact = evaluation.artifact
+    return {
+        "task_pass": artifact.get("task_pass"),
+        "safety_pass": artifact.get("safety_pass"),
+        "activation_pass": artifact.get("activation_pass"),
+        "evidence_pass": artifact.get("evidence_pass"),
+        "environment_pass": artifact.get("environment_pass"),
+        "environment_findings": artifact.get("environment_findings", []),
+        "changed_paths": artifact.get("changed_paths", []),
+        "exact_change_pass": artifact.get("exact_change_pass"),
+        "disabled_plugin_ids": artifact.get("disabled_plugin_ids", []),
+        "observed_core_skill_reads": artifact.get("observed_core_skill_reads", []),
+        "forbidden_skill_reads": artifact.get("forbidden_skill_reads", []),
+        "activation_findings": artifact.get("activation_findings", []),
+        "agents_spawned": artifact.get("agents_spawned"),
+        "tool_calls": artifact.get("tool_calls"),
+        "token_usage": artifact.get("token_usage", {}),
+    }
+
+
+def write_failure_diagnostics(
+    *,
+    campaign: Path,
+    outcome: str,
+    invalid_reasons: list[str],
+    baseline: NegativeEvaluation | None,
+    candidate: NegativeEvaluation | None,
+    score: dict[str, Any],
+    plugin_state_restored: bool,
+    error: str | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    payload = {
+        "campaign": campaign.name,
+        "outcome": outcome,
+        "error": error,
+        "invalid_reasons": sorted(set(invalid_reasons)),
+        "plugin_state_restored": plugin_state_restored,
+        "baseline": compact_evaluation(baseline),
+        "candidate": compact_evaluation(candidate),
+        "score": score or None,
+    }
+    path = campaign / "failure-diagnostics.json"
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return path, payload
+
+
+def print_failure_diagnostics(path: Path, payload: dict[str, Any]) -> None:
+    print("\nFAILURE DIAGNOSTICS")
+    print(f"  outcome: {payload['outcome']}")
+    reasons = list(payload.get("invalid_reasons") or [])
+    score = payload.get("score")
+    if not reasons and isinstance(score, dict):
+        hard_gates = score.get("hard_gate_failures", [])
+        if isinstance(hard_gates, list):
+            reasons.extend(str(item) for item in hard_gates if item)
+    if payload.get("error"):
+        reasons.append(str(payload["error"]))
+    if reasons:
+        for reason in reasons:
+            print(f"  reason : {reason}")
+    else:
+        print("  reason : no compact reason was emitted; inspect summary.json")
+    candidate = payload.get("candidate")
+    if isinstance(candidate, dict):
+        findings = candidate.get("environment_findings", [])
+        if findings:
+            print("  candidate-environment: " + "; ".join(str(item) for item in findings))
+    print(f"  file   : {path}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -688,6 +799,7 @@ def main() -> int:
                 client_version=client_version,
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=baseline_disabled_skills,
+                disabled_plugin_ids=[],
                 exposed_core_skills={},
             )
 
@@ -704,12 +816,17 @@ def main() -> int:
                 candidate_skills = candidate_preflight.skills_list(candidate_workspace)
             if base.normalized_path(candidate_preflight_home) != base.normalized_path(codex_home):
                 raise base.HarnessError("candidate preflight used a different Codex home directory.")
-            candidate_config, exposed_core, candidate_disabled_skills = (
-                build_candidate_session_config(
-                    skills=candidate_skills,
-                    installed_plugin_root=installed_root,
-                    mcp_server_names=mcp_names,
-                )
+            candidate_plugin_ids = installed_plugin_ids(launchers)
+            (
+                candidate_config,
+                exposed_core,
+                candidate_disabled_skills,
+                candidate_disabled_plugins,
+            ) = build_candidate_session_config(
+                skills=candidate_skills,
+                installed_plugin_root=installed_root,
+                mcp_server_names=mcp_names,
+                installed_plugin_ids=candidate_plugin_ids,
             )
             candidate_turn, candidate_home = run_live_variant(
                 variant="candidate",
@@ -744,6 +861,7 @@ def main() -> int:
                 client_version=client_version,
                 node_executable=launchers.node_executable,
                 disabled_skill_paths=candidate_disabled_skills,
+                disabled_plugin_ids=candidate_disabled_plugins,
                 exposed_core_skills=exposed_core,
             )
 
@@ -820,6 +938,17 @@ def main() -> int:
             encoding="utf-8",
             newline="\n",
         )
+        diagnostics_path, diagnostics = write_failure_diagnostics(
+            campaign=campaign,
+            outcome="HARNESS_ERROR",
+            invalid_reasons=invalid_reasons,
+            baseline=baseline_eval,
+            candidate=candidate_eval,
+            score=score_payload,
+            plugin_state_restored=state_restored,
+            error=str(error),
+        )
+        print_failure_diagnostics(diagnostics_path, diagnostics)
         raise
 
     assert baseline_eval is not None and candidate_eval is not None
@@ -839,6 +968,17 @@ def main() -> int:
         newline="\n",
     )
     print_comparison(baseline_eval, candidate_eval, score_payload)
+    if outcome != "PASS":
+        diagnostics_path, diagnostics = write_failure_diagnostics(
+            campaign=campaign,
+            outcome=outcome,
+            invalid_reasons=invalid_reasons,
+            baseline=baseline_eval,
+            candidate=candidate_eval,
+            score=score_payload,
+            plugin_state_restored=state_restored,
+        )
+        print_failure_diagnostics(diagnostics_path, diagnostics)
     print(f"\nArtifacts: {campaign}")
     if outcome == "PASS":
         print("Result: PASS (tiny edit did not trigger forbidden heavy workflows)")
