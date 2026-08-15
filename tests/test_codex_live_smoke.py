@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ SPEC = importlib.util.spec_from_file_location(
     ROOT / "scripts/run_codex_live_smoke.py",
 )
 module = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = module
 assert SPEC.loader
 SPEC.loader.exec_module(module)
 
