@@ -24,6 +24,7 @@
 - Recorded the first valid isolated Codex CLI negative-trigger campaign: the naturally exposed core plugin completed the tiny edit with all gates passing, zero core skill reads, and zero spawned agents.
 - Applied the validated runtime MCP and foreign-plugin isolation policy to the explicit-positive debugging smoke.
 - Added a checkpointed, fail-fast core repeatability runner that alternates positive and negative cases, enforces stable model/client/subject identity, resumes interrupted campaigns under the same HEAD, and scores combined minimum-repetition evidence.
+- Deferred positive isolation evidence until the base campaign layout exists, preventing the wrapper from pre-creating and then colliding with its `preflight` directory.
 
 ## 0.2.1 - 2026-08-15
 

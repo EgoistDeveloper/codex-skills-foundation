@@ -73,8 +73,14 @@ def write_isolation_artifact(
     startup_overrides: list[str],
     plugin_ids: list[str],
 ) -> Path:
-    path = campaign / "preflight" / "positive-runtime-isolation.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    preflight_dir = campaign / "preflight"
+    if not preflight_dir.is_dir():
+        raise base.HarnessError(
+            "positive campaign layout did not prepare the preflight directory "
+            "before the isolation artifact write."
+        )
+
+    path = preflight_dir / "positive-runtime-isolation.json"
     payload = {
         "schema_version": 1,
         "isolation_revision": ISOLATION_REVISION,
@@ -170,14 +176,25 @@ def main() -> int:
     original_resolver = base.resolve_codex_launchers
     original_reader = base.configured_mcp_server_names
     original_campaign_directory = base.campaign_directory
+    original_create_fixture = base.create_fixture
     safe_session_builder = isolation.startup_only_session_config_builder(
         original_session_builder
     )
+    captured_campaign: Path | None = None
 
     def capture_campaign(output_root: Path) -> Path:
-        campaign = original_campaign_directory(output_root)
+        nonlocal captured_campaign
+        captured_campaign = original_campaign_directory(output_root)
+        return captured_campaign
+
+    def create_fixture_with_isolation(seed: Path) -> None:
+        if captured_campaign is None:
+            raise base.HarnessError(
+                "positive isolation campaign path was not captured before fixture creation."
+            )
+
         artifact = write_isolation_artifact(
-            campaign=campaign,
+            campaign=captured_campaign,
             codex_home=codex_home,
             direct_mcp_names=direct_mcp_names,
             runtime_inventory=runtime_inventory,
@@ -194,11 +211,12 @@ def main() -> int:
         print("  veto-validation   : PASS")
         print(f"  artifact          : {artifact}")
         print()
-        return campaign
+        original_create_fixture(seed)
 
     base.resolve_codex_launchers = lambda: isolated_launchers
     base.configured_mcp_server_names = lambda _home: list(disabled_mcp_names)
     base.campaign_directory = capture_campaign
+    base.create_fixture = create_fixture_with_isolation
     base.build_session_config = safe_session_builder
     try:
         return base.main()
@@ -206,6 +224,7 @@ def main() -> int:
         base.resolve_codex_launchers = original_resolver
         base.configured_mcp_server_names = original_reader
         base.campaign_directory = original_campaign_directory
+        base.create_fixture = original_create_fixture
         base.build_session_config = original_session_builder
 
 

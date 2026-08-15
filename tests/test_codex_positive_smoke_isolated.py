@@ -85,6 +85,7 @@ class CodexPositiveSmokeIsolationTests(unittest.TestCase):
     def test_isolation_artifact_discloses_zero_model_preflight(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             campaign = Path(tmp) / "campaign"
+            (campaign / "preflight").mkdir(parents=True)
             path = module.write_isolation_artifact(
                 campaign=campaign,
                 codex_home=Path(tmp) / ".codex",
@@ -114,6 +115,26 @@ class CodexPositiveSmokeIsolationTests(unittest.TestCase):
             self.assertEqual(payload["model_calls"], 0)
             self.assertTrue(payload["thread_mcp_overrides_omitted"])
             self.assertTrue(payload["veto_validation_pass"])
+
+    def test_isolation_artifact_refuses_to_create_base_campaign_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            campaign = Path(tmp) / "campaign"
+            campaign.mkdir()
+
+            with self.assertRaisesRegex(base.HarnessError, "did not prepare"):
+                module.write_isolation_artifact(
+                    campaign=campaign,
+                    codex_home=Path(tmp) / ".codex",
+                    direct_mcp_names=[],
+                    runtime_inventory=[],
+                    disabled_mcp_names=[],
+                    veto_inventory=[],
+                    veto_overrides=[],
+                    startup_overrides=[],
+                    plugin_ids=[base.PLUGIN_ID],
+                )
+
+            self.assertFalse((campaign / "preflight").exists())
 
 
 if __name__ == "__main__":
