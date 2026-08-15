@@ -1,0 +1,167 @@
+name: Apply negative smoke isolation fix
+
+on:
+  push:
+    branches:
+      - fix/codex-negative-smoke-plugin-isolation
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/codex-negative-smoke-plugin-isolation
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Patch harness, tests, and docs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one match in {path}, found {count}: {old[:80]!r}")
+              target.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
+
+          script = "scripts/run_codex_negative_smoke.py"
+
+          replace_once(
+              script,
+              '''def combined_output(result: subprocess.CompletedProcess[str]) -> str:\n    return "\\n".join(part for part in (result.stdout, result.stderr) if part)\n\n\ndef completed_verify_commands''',
+              '''def combined_output(result: subprocess.CompletedProcess[str]) -> str:\n    return "\\n".join(part for part in (result.stdout, result.stderr) if part)\n\n\ndef installed_plugin_ids(launchers: base.CodexLaunchers) -> list[str]:\n    payload = base.json_cli(launchers, "plugin", "list", "--json")\n    rows = payload.get("installed", [])\n    if not isinstance(rows, list):\n        raise base.HarnessError("Codex plugin list has an unexpected shape.")\n    return sorted(\n        {\n            str(row["pluginId"])\n            for row in rows\n            if isinstance(row, dict)\n            and isinstance(row.get("pluginId"), str)\n            and str(row["pluginId"]).strip()\n        }\n    )\n\n\ndef completed_verify_commands''',
+          )
+
+          replace_once(
+              script,
+              '''def build_candidate_session_config(\n    *,\n    skills: list[dict[str, Any]],\n    installed_plugin_root: Path,\n    mcp_server_names: list[str],\n) -> tuple[dict[str, Any], dict[str, str], list[str]]:''',
+              '''def build_candidate_session_config(\n    *,\n    skills: list[dict[str, Any]],\n    installed_plugin_root: Path,\n    mcp_server_names: list[str],\n    installed_plugin_ids: list[str],\n) -> tuple[dict[str, Any], dict[str, str], list[str], list[str]]:''',
+          )
+
+          replace_once(
+              script,
+              '''    # Unlike the explicit-positive smoke, this campaign must expose the plugin\n    # router naturally. All foreign skills remain disabled by exact path.\n    config["features"]["plugins"] = True\n    return config, discovered_core, foreign_paths\n''',
+              '''    if base.PLUGIN_ID not in installed_plugin_ids:\n        raise base.HarnessError(\n            f"installed plugin inventory did not contain {base.PLUGIN_ID!r}."\n        )\n    foreign_plugin_ids = sorted(\n        plugin_id\n        for plugin_id in set(installed_plugin_ids)\n        if plugin_id != base.PLUGIN_ID\n    )\n\n    # Unlike the explicit-positive smoke, this campaign must expose the core\n    # plugin router naturally. Disable every other installed plugin at the\n    # thread layer so foreign plugin-contributed MCP servers cannot start.\n    config["features"]["plugins"] = True\n    config["plugins"] = {\n        plugin_id: {"enabled": plugin_id == base.PLUGIN_ID}\n        for plugin_id in sorted(set(installed_plugin_ids) | {base.PLUGIN_ID})\n    }\n    return config, discovered_core, foreign_paths, foreign_plugin_ids\n''',
+          )
+
+          replace_once(
+              script,
+              '''    disabled_skill_paths: list[str],\n    exposed_core_skills: dict[str, str],\n) -> NegativeEvaluation:''',
+              '''    disabled_skill_paths: list[str],\n    disabled_plugin_ids: list[str],\n    exposed_core_skills: dict[str, str],\n) -> NegativeEvaluation:''',
+          )
+
+          replace_once(
+              script,
+              '''        "environment_findings": environment_findings,\n        "token_usage": token_usage,''',
+              '''        "environment_findings": environment_findings,\n        "disabled_plugin_ids": sorted(set(disabled_plugin_ids)),\n        "token_usage": token_usage,''',
+          )
+
+          replace_once(
+              script,
+              '''def parse_args() -> argparse.Namespace:''',
+              '''def compact_evaluation(evaluation: NegativeEvaluation | None) -> dict[str, Any] | None:\n    if evaluation is None:\n        return None\n    artifact = evaluation.artifact\n    return {\n        "task_pass": artifact.get("task_pass"),\n        "safety_pass": artifact.get("safety_pass"),\n        "activation_pass": artifact.get("activation_pass"),\n        "evidence_pass": artifact.get("evidence_pass"),\n        "environment_pass": artifact.get("environment_pass"),\n        "environment_findings": artifact.get("environment_findings", []),\n        "changed_paths": artifact.get("changed_paths", []),\n        "exact_change_pass": artifact.get("exact_change_pass"),\n        "disabled_plugin_ids": artifact.get("disabled_plugin_ids", []),\n        "observed_core_skill_reads": artifact.get("observed_core_skill_reads", []),\n        "forbidden_skill_reads": artifact.get("forbidden_skill_reads", []),\n        "activation_findings": artifact.get("activation_findings", []),\n        "agents_spawned": artifact.get("agents_spawned"),\n        "tool_calls": artifact.get("tool_calls"),\n        "token_usage": artifact.get("token_usage", {}),\n    }\n\n\ndef write_failure_diagnostics(\n    *,\n    campaign: Path,\n    outcome: str,\n    invalid_reasons: list[str],\n    baseline: NegativeEvaluation | None,\n    candidate: NegativeEvaluation | None,\n    score: dict[str, Any],\n    plugin_state_restored: bool,\n    error: str | None = None,\n) -> tuple[Path, dict[str, Any]]:\n    payload = {\n        "campaign": campaign.name,\n        "outcome": outcome,\n        "error": error,\n        "invalid_reasons": sorted(set(invalid_reasons)),\n        "plugin_state_restored": plugin_state_restored,\n        "baseline": compact_evaluation(baseline),\n        "candidate": compact_evaluation(candidate),\n        "score": score or None,\n    }\n    path = campaign / "failure-diagnostics.json"\n    path.write_text(\n        json.dumps(payload, ensure_ascii=False, indent=2) + "\\n",\n        encoding="utf-8",\n        newline="\\n",\n    )\n    return path, payload\n\n\ndef print_failure_diagnostics(path: Path, payload: dict[str, Any]) -> None:\n    print("\\nFAILURE DIAGNOSTICS")\n    print(f"  outcome: {payload['outcome']}")\n    reasons = list(payload.get("invalid_reasons") or [])\n    score = payload.get("score")\n    if not reasons and isinstance(score, dict):\n        hard_gates = score.get("hard_gate_failures", [])\n        if isinstance(hard_gates, list):\n            reasons.extend(str(item) for item in hard_gates if item)\n    if payload.get("error"):\n        reasons.append(str(payload["error"]))\n    if reasons:\n        for reason in reasons:\n            print(f"  reason : {reason}")\n    else:\n        print("  reason : no compact reason was emitted; inspect summary.json")\n    candidate = payload.get("candidate")\n    if isinstance(candidate, dict):\n        findings = candidate.get("environment_findings", [])\n        if findings:\n            print("  candidate-environment: " + "; ".join(str(item) for item in findings))\n    print(f"  file   : {path}")\n\n\ndef parse_args() -> argparse.Namespace:''',
+          )
+
+          replace_once(
+              script,
+              '''                disabled_skill_paths=baseline_disabled_skills,\n                exposed_core_skills={},''',
+              '''                disabled_skill_paths=baseline_disabled_skills,\n                disabled_plugin_ids=[],\n                exposed_core_skills={},''',
+          )
+
+          replace_once(
+              script,
+              '''            candidate_config, exposed_core, candidate_disabled_skills = (\n                build_candidate_session_config(\n                    skills=candidate_skills,\n                    installed_plugin_root=installed_root,\n                    mcp_server_names=mcp_names,\n                )\n            )''',
+              '''            candidate_plugin_ids = installed_plugin_ids(launchers)\n            (\n                candidate_config,\n                exposed_core,\n                candidate_disabled_skills,\n                candidate_disabled_plugins,\n            ) = build_candidate_session_config(\n                skills=candidate_skills,\n                installed_plugin_root=installed_root,\n                mcp_server_names=mcp_names,\n                installed_plugin_ids=candidate_plugin_ids,\n            )''',
+          )
+
+          replace_once(
+              script,
+              '''                disabled_skill_paths=candidate_disabled_skills,\n                exposed_core_skills=exposed_core,''',
+              '''                disabled_skill_paths=candidate_disabled_skills,\n                disabled_plugin_ids=candidate_disabled_plugins,\n                exposed_core_skills=exposed_core,''',
+          )
+
+          replace_once(
+              script,
+              '''        (campaign / "summary.json").write_text(\n            json.dumps(summary, ensure_ascii=False, indent=2) + "\\n",\n            encoding="utf-8",\n            newline="\\n",\n        )\n        raise\n''',
+              '''        (campaign / "summary.json").write_text(\n            json.dumps(summary, ensure_ascii=False, indent=2) + "\\n",\n            encoding="utf-8",\n            newline="\\n",\n        )\n        diagnostics_path, diagnostics = write_failure_diagnostics(\n            campaign=campaign,\n            outcome="HARNESS_ERROR",\n            invalid_reasons=invalid_reasons,\n            baseline=baseline_eval,\n            candidate=candidate_eval,\n            score=score_payload,\n            plugin_state_restored=state_restored,\n            error=str(error),\n        )\n        print_failure_diagnostics(diagnostics_path, diagnostics)\n        raise\n''',
+          )
+
+          replace_once(
+              script,
+              '''    print_comparison(baseline_eval, candidate_eval, score_payload)\n    print(f"\\nArtifacts: {campaign}")\n    if outcome == "PASS":''',
+              '''    print_comparison(baseline_eval, candidate_eval, score_payload)\n    if outcome != "PASS":\n        diagnostics_path, diagnostics = write_failure_diagnostics(\n            campaign=campaign,\n            outcome=outcome,\n            invalid_reasons=invalid_reasons,\n            baseline=baseline_eval,\n            candidate=candidate_eval,\n            score=score_payload,\n            plugin_state_restored=state_restored,\n        )\n        print_failure_diagnostics(diagnostics_path, diagnostics)\n    print(f"\\nArtifacts: {campaign}")\n    if outcome == "PASS":''',
+          )
+
+          test = "tests/test_codex_negative_smoke.py"
+          replace_once(
+              test,
+              '''            config, exposed, disabled = module.build_candidate_session_config(\n                skills=skills,\n                installed_plugin_root=root,\n                mcp_server_names=["memory"],\n            )''',
+              '''            foreign_plugin = "fable-advisor@foreign-marketplace"\n            config, exposed, disabled, disabled_plugins = (\n                module.build_candidate_session_config(\n                    skills=skills,\n                    installed_plugin_root=root,\n                    mcp_server_names=["memory"],\n                    installed_plugin_ids=[base.PLUGIN_ID, foreign_plugin],\n                )\n            )''',
+          )
+
+          replace_once(
+              test,
+              '''            self.assertTrue(module.FORBIDDEN_SKILL_NAMES.issubset(exposed))\n            self.assertFalse(any(path in disabled_paths for path in exposed.values()))\n''',
+              '''            self.assertTrue(module.FORBIDDEN_SKILL_NAMES.issubset(exposed))\n            self.assertFalse(any(path in disabled_paths for path in exposed.values()))\n            self.assertEqual(disabled_plugins, [foreign_plugin])\n            self.assertTrue(config["plugins"][base.PLUGIN_ID]["enabled"])\n            self.assertFalse(config["plugins"][foreign_plugin]["enabled"])\n''',
+          )
+
+          replace_once(
+              test,
+              '''                disabled_skill_paths=[],\n                exposed_core_skills=exposed,''',
+              '''                disabled_skill_paths=[],\n                disabled_plugin_ids=[],\n                exposed_core_skills=exposed,''',
+          )
+
+          replace_once(
+              test,
+              '''            self.assertEqual(evaluation.row["agents_spawned"], 0)\n\n\nif __name__ == "__main__":''',
+              '''            self.assertEqual(evaluation.row["agents_spawned"], 0)\n\n    def test_failure_diagnostics_preserve_environment_reason(self) -> None:\n        evaluation = module.NegativeEvaluation(\n            row={},\n            artifact={\n                "task_pass": False,\n                "safety_pass": True,\n                "activation_pass": True,\n                "evidence_pass": True,\n                "environment_pass": False,\n                "environment_findings": [\n                    "MCP servers became ready: fable-advisor-python3"\n                ],\n                "changed_paths": ["settings.json"],\n                "disabled_plugin_ids": ["fable-advisor@foreign-marketplace"],\n                "token_usage": {},\n            },\n        )\n        with tempfile.TemporaryDirectory() as tmp:\n            path, payload = module.write_failure_diagnostics(\n                campaign=Path(tmp),\n                outcome="INVALID",\n                invalid_reasons=[\n                    "MCP servers became ready: fable-advisor-python3"\n                ],\n                baseline=None,\n                candidate=evaluation,\n                score={"status": "INVALID"},\n                plugin_state_restored=True,\n            )\n            self.assertTrue(path.is_file())\n            self.assertEqual(payload["outcome"], "INVALID")\n            self.assertEqual(\n                payload["candidate"]["disabled_plugin_ids"],\n                ["fable-advisor@foreign-marketplace"],\n            )\n            self.assertIn(\n                "fable-advisor-python3",\n                payload["invalid_reasons"][0],\n            )\n\n\nif __name__ == "__main__":''',
+          )
+
+          replace_once(
+              "docs/live-smoke.md",
+              '''The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign user skills, apps, memories, JavaScript REPL, and configured MCP servers remain disabled.\n''',
+              '''The baseline runs with plugins and ambient skills disabled. The candidate installs and exposes the core plugin without an explicit skill input. Foreign installed plugins and user skills, apps, memories, JavaScript REPL, and configured MCP servers remain disabled at the thread layer.\n''',
+          )
+
+          replace_once(
+              "docs/live-smoke.md",
+              '''- `summary.json` is written for PASS, FAIL, INVALID, and harness-error outcomes.\n''',
+              '''- `summary.json` is written for PASS, FAIL, INVALID, and harness-error outcomes; every non-PASS result also prints compact reasons and writes `failure-diagnostics.json`.\n''',
+          )
+
+          replace_once(
+              "CHANGELOG.md",
+              '''- Added an authenticated negative-trigger smoke that exposes the core plugin naturally and rejects planning, orchestration, subagents, unrelated edits, or ambient-capability contamination on a one-literal configuration task.\n''',
+              '''- Added an authenticated negative-trigger smoke that exposes the core plugin naturally and rejects planning, orchestration, subagents, unrelated edits, or ambient-capability contamination on a one-literal configuration task.\n- Isolated negative-smoke candidates from every foreign installed plugin so plugin-contributed MCP servers cannot contaminate the campaign, and emit automatic diagnostics for every non-PASS outcome.\n''',
+          )
+          PY
+
+      - name: Install validation dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Run focused tests
+        run: python -m unittest tests/test_codex_negative_smoke.py tests/test_codex_live_smoke.py -v
+
+      - name: Run complete bootstrap
+        run: python scripts/bootstrap.py
+
+      - name: Commit generated fix
+        shell: bash
+        run: |
+          rm .github/workflows/apply-negative-smoke-isolation-fix.yml
+          git config user.name "EgoistDeveloper"
+          git config user.email "60717140+EgoistDeveloper@users.noreply.github.com"
+          git add scripts/run_codex_negative_smoke.py tests/test_codex_negative_smoke.py docs/live-smoke.md CHANGELOG.md .github/workflows/apply-negative-smoke-isolation-fix.yml
+          git commit -m "fix: isolate foreign plugins in negative smoke"
+          git push origin HEAD:fix/codex-negative-smoke-plugin-isolation
