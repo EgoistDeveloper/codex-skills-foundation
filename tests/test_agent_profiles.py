@@ -39,7 +39,12 @@ class AgentProfileTests(unittest.TestCase):
             actions = module.plan("codex", target)
             self.assertEqual(len(actions), 3)
             self.assertTrue(all(status == "CREATE" for _, _, status in actions))
-            self.assertTrue(all(str(destination.relative_to(target)).startswith(".codex/agents/") for _, destination, _ in actions))
+            self.assertTrue(
+                all(
+                    destination.relative_to(target).parent == Path(".codex/agents")
+                    for _, destination, _ in actions
+                )
+            )
             self.assertFalse((target / ".codex").exists())
 
     def test_installer_detects_conflict(self) -> None:
