@@ -1,17 +1,18 @@
 {
   "id": "bounded-read-only-delegation",
-  "revision": 1,
+  "revision": 2,
   "package": "engineering-foundation-core",
-  "prompt": "Audit three independent subsystems and return a single integrated risk report without editing files.",
+  "prompt": "Audit three independent subsystems, explicitly delegate at least one workstream through the native spawn_agent collaboration tool, and return one integrated report without editing files.",
   "expected_activation": [
     "bounded-orchestration",
     "review-diff"
   ],
   "forbidden_activation": [],
   "behavior_assertions": [
-    "Uses at most three read-only workers.",
+    "Spawns between one and three direct read-only workers.",
     "Keeps delegation depth at one.",
-    "Parent owns integration and final claim."
+    "Parent owns integration and final claim.",
+    "Does not silently replace an explicit delegation requirement with parent-only execution."
   ],
   "risk": "medium"
 }

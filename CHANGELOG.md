@@ -27,6 +27,7 @@
 - Deferred positive isolation evidence until the base campaign layout exists, preventing the wrapper from pre-creating and then colliding with its `preflight` directory.
 - Recorded a complete three-repetition core campaign: all six positive/negative child campaigns and twelve authenticated turns passed, negative candidates retained zero core reads and zero agents, and the parent restored exact marketplace, plugin, and config state.
 - Added a bounded read-only delegation smoke that requires one to three direct children, inspects each child for nested fan-out, forbids all fixture writes, and gates the parent report on exact source-backed risk coverage.
+- Corrected the bounded-delegation positive contract after revision 1 permitted parent-only execution while its hidden gate required a child: revision 2 explicitly requires native `spawn_agent` activation and pins the stable default multi-agent v1 surface for both variants.
 
 ## 0.2.1 - 2026-08-15
 
