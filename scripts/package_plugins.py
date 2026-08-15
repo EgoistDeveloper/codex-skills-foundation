@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import stat
 import sys
 import zipfile
@@ -14,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog/plugins.json"
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
+FIXED_FILE_MODE = stat.S_IFREG | 0o644
 
 
 def sha256(path: Path) -> str:
@@ -57,8 +57,10 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
         for path in files:
             relative = path.relative_to(plugin_root).as_posix()
             info = zipfile.ZipInfo(relative, FIXED_TIME)
-            mode = stat.S_IFREG | (0o755 if os.access(path, os.X_OK) else 0o644)
-            info.external_attr = mode << 16
+            # Plugin packages contain data/configuration files, not directly executed programs.
+            # Pin Unix metadata instead of using os.access(), whose X_OK behavior differs on Windows.
+            info.create_system = 3
+            info.external_attr = FIXED_FILE_MODE << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             zf.writestr(info, path.read_bytes())
     return archive, sha256(archive)
