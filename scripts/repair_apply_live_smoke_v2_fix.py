@@ -20,41 +20,46 @@ runpy.run_path(str(path), run_name="__main__")
 
 
 def escape_newlines_in_short_strings(source: str) -> str:
-    """Repair newlines interpreted by the one-shot generator inside short strings.
-
-    Triple-quoted generated fixtures and documentation remain untouched. A physical
-    newline inside an ordinary single- or double-quoted Python string is never valid,
-    so replacing it with the two characters ``\\n`` is lossless for this generator.
-    """
+    """Repair generator-interpreted newlines inside ordinary Python strings."""
 
     output: list[str] = []
-    quote: str | None = None
-    triple = False
+    state = "code"
+    quote = ""
     index = 0
 
     while index < len(source):
-        if quote is None:
+        if state == "code":
             if source.startswith("'''", index) or source.startswith('"""', index):
                 token = source[index : index + 3]
                 output.append(token)
                 quote = token[0]
-                triple = True
+                state = "triple"
                 index += 3
                 continue
             char = source[index]
             output.append(char)
-            if char in {"'", '"'}:
+            if char == "#":
+                state = "comment"
+            elif char in {"'", '"'}:
                 quote = char
-                triple = False
+                state = "short"
             index += 1
             continue
 
-        if triple:
+        if state == "comment":
+            char = source[index]
+            output.append(char)
+            index += 1
+            if char == "\n":
+                state = "code"
+            continue
+
+        if state == "triple":
             delimiter = quote * 3
             if source.startswith(delimiter, index):
                 output.append(delimiter)
-                quote = None
-                triple = False
+                state = "code"
+                quote = ""
                 index += 3
                 continue
             char = source[index]
@@ -74,7 +79,8 @@ def escape_newlines_in_short_strings(source: str) -> str:
             continue
         if char == quote:
             output.append(char)
-            quote = None
+            state = "code"
+            quote = ""
             index += 1
             continue
         if char == "\n":
@@ -84,8 +90,8 @@ def escape_newlines_in_short_strings(source: str) -> str:
         output.append(char)
         index += 1
 
-    if quote is not None:
-        raise SystemExit("generated Python still contains an unterminated string")
+    if state not in {"code", "comment"}:
+        raise SystemExit(f"generated Python still contains an unterminated {state} string")
     return "".join(output)
 
 
