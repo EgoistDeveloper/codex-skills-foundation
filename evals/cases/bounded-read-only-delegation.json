@@ -1,0 +1,17 @@
+{
+  "id": "bounded-read-only-delegation",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Audit three independent subsystems and return a single integrated risk report without editing files.",
+  "expected_activation": [
+    "bounded-orchestration",
+    "review-diff"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Uses at most three read-only workers.",
+    "Keeps delegation depth at one.",
+    "Parent owns integration and final claim."
+  ],
+  "risk": "medium"
+}

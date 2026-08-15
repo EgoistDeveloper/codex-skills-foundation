@@ -1,0 +1,17 @@
+{
+  "id": "completion-does-not-trigger-refactor",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "The accepted change and all checks pass. Finish the task.",
+  "expected_activation": [
+    "verify-before-completion"
+  ],
+  "forbidden_activation": [
+    "surgical-implementation"
+  ],
+  "behavior_assertions": [
+    "Maps all acceptance IDs to current evidence.",
+    "Does not reopen implementation for aesthetic cleanup."
+  ],
+  "risk": "low"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "current-source-research",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Verify the current plugin manifest rules before changing a provider adapter.",
+  "expected_activation": [
+    "source-grounded-research"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Uses dated primary sources and revisions.",
+    "Separates fact, inference, unknown, and recommendation."
+  ],
+  "risk": "medium"
+}

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Plan and Milestones"
+  short_description: "Create an executable plan only when complexity warrants it"

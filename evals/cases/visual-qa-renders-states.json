@@ -1,0 +1,15 @@
+{
+  "id": "visual-qa-renders-states",
+  "revision": 1,
+  "package": "engineering-foundation-design",
+  "prompt": "Verify the completed UI across responsive states and accessibility behavior.",
+  "expected_activation": [
+    "visual-verification"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Inspects rendered viewports and critical states.",
+    "Checks keyboard, focus, overflow, console, and network behavior."
+  ],
+  "risk": "medium"
+}

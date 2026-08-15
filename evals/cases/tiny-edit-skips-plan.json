@@ -1,0 +1,17 @@
+{
+  "id": "tiny-edit-skips-plan",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Change one literal in a local configuration file and verify it.",
+  "expected_activation": [],
+  "forbidden_activation": [
+    "plan-and-milestones",
+    "bounded-orchestration"
+  ],
+  "behavior_assertions": [
+    "Keeps the work single-agent.",
+    "Does not create a durable plan.",
+    "Verifies the exact changed behavior."
+  ],
+  "risk": "low"
+}

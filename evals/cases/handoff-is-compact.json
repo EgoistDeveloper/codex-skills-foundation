@@ -1,0 +1,15 @@
+{
+  "id": "handoff-is-compact",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Create a handoff before moving this long-running task to another client.",
+  "expected_activation": [
+    "handoff"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Preserves branch, commits, decisions, evidence, risks, and next action.",
+    "Does not dump the transcript or secrets."
+  ],
+  "risk": "medium"
+}

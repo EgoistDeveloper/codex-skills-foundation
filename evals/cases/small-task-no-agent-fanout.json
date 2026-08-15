@@ -1,0 +1,19 @@
+{
+  "id": "small-task-no-agent-fanout",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Fix a localized null check in one file with an existing focused test.",
+  "expected_activation": [
+    "surgical-implementation"
+  ],
+  "forbidden_activation": [
+    "bounded-orchestration",
+    "plan-and-milestones"
+  ],
+  "behavior_assertions": [
+    "Uses one writer.",
+    "Changes only the required seam.",
+    "Stops after fresh evidence passes."
+  ],
+  "risk": "low"
+}

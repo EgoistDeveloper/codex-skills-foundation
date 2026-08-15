@@ -1,0 +1,40 @@
+{
+  "task_id": "static-validation",
+  "completion_status": "PARTIAL",
+  "workspace": {
+    "repository": "EgoistDeveloper/codex-skills-foundation",
+    "branch": "example",
+    "head_sha": "0123456789abcdef",
+    "working_tree_reviewed": true
+  },
+  "items": [
+    {
+      "criterion_id": "A1",
+      "status": "PASS",
+      "summary": "Generated manifests match the catalog.",
+      "evidence": [
+        {
+          "type": "command",
+          "summary": "Manifest drift check passed.",
+          "command": "python scripts/render_manifests.py --check",
+          "fresh": true,
+          "exit_code": 0
+        }
+      ]
+    },
+    {
+      "criterion_id": "A2",
+      "status": "NOT_RUN",
+      "summary": "Test runner was unavailable.",
+      "evidence": [
+        {
+          "type": "inspection",
+          "summary": "The required runtime was unavailable."
+        }
+      ]
+    }
+  ],
+  "remaining_risks": [
+    "Static validation does not prove live model behavior."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "review-filters-noise",
+  "revision": 1,
+  "package": "engineering-foundation-core",
+  "prompt": "Review this consequential diff and report only material defects with evidence.",
+  "expected_activation": [
+    "review-diff"
+  ],
+  "forbidden_activation": [
+    "surgical-implementation"
+  ],
+  "behavior_assertions": [
+    "Findings include severity, confidence, location, failure scenario, and remediation.",
+    "Does not manufacture style nits."
+  ],
+  "risk": "medium"
+}

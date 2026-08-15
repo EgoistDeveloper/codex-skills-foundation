@@ -1,0 +1,50 @@
+{
+  "task_id": "static-validation",
+  "objective": "Repository static validation finishes with no errors or warnings.",
+  "acceptance_status": [
+    {
+      "id": "A1",
+      "status": "PASS"
+    },
+    {
+      "id": "A2",
+      "status": "PASS"
+    }
+  ],
+  "non_goals": [
+    "Live Codex or Claude behavior qualification."
+  ],
+  "constraints": [
+    "Evidence must come from the current workspace."
+  ],
+  "repository_state": {
+    "repository": "EgoistDeveloper/codex-skills-foundation",
+    "branch": "example",
+    "baseline_sha": "0000000",
+    "head_sha": "0123456789abcdef",
+    "working_tree": "clean"
+  },
+  "decisions": [
+    "Static and live behavior qualification remain separate."
+  ],
+  "completed_work": [
+    "Validated manifests, schemas, tests, and packages."
+  ],
+  "checks": [
+    {
+      "command": "python scripts/bootstrap.py",
+      "status": "PASS",
+      "summary": "All deterministic checks passed."
+    }
+  ],
+  "remaining_risks": [
+    "No live provider run is represented by this example."
+  ],
+  "next_atomic_action": "Run provider-specific live qualification when releasing on a new client version.",
+  "resume_commands": [
+    "python scripts/bootstrap.py"
+  ],
+  "provenance": [
+    "Repository documentation and checked-in schemas."
+  ]
+}

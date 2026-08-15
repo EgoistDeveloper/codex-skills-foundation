@@ -1,0 +1,41 @@
+{
+  "name": "engineering-foundation-design",
+  "version": "0.2.0",
+  "description": "Single-direction interface design, design-contract authoring, implementation states, accessibility, and rendered visual verification.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "design-system",
+    "ui",
+    "typography",
+    "accessibility",
+    "responsive",
+    "visual-qa"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Design Engineering Foundation",
+    "shortDescription": "One coherent UI direction with rendered visual verification.",
+    "longDescription": "Single-direction interface design, design-contract authoring, implementation states, accessibility, and rendered visual verification.",
+    "developerName": "EgoistDeveloper",
+    "category": "Creativity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+    "privacyPolicyURL": "https://github.com/EgoistDeveloper/codex-skills-foundation/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/EgoistDeveloper/codex-skills-foundation/blob/main/TERMS.md",
+    "defaultPrompt": [
+      "Choose one coherent interface direction, implement it, and verify the rendered states."
+    ],
+    "brandColor": "#7C3AED",
+    "screenshots": []
+  }
+}

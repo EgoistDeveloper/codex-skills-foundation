@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review Diff"
+  short_description: "Report material correctness and security findings, not style noise"

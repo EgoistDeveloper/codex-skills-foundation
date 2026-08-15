@@ -1,0 +1,16 @@
+{
+  "id": "laravel-reads-project-first",
+  "revision": 1,
+  "package": "engineering-foundation-laravel",
+  "prompt": "Add a Laravel authorization-sensitive feature in this existing repository.",
+  "expected_activation": [
+    "laravel-project-engineering"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Reads installed versions and local patterns first.",
+    "Preserves policy and tenant boundaries.",
+    "Runs focused and risk-proportional checks."
+  ],
+  "risk": "high"
+}

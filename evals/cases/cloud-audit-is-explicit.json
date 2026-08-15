@@ -1,0 +1,16 @@
+{
+  "id": "cloud-audit-is-explicit",
+  "revision": 1,
+  "package": "engineering-foundation-cloud",
+  "prompt": "Prepare this repository for Codex Cloud with safe setup, caching, and network rules.",
+  "expected_activation": [
+    "cloud-readiness"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Separates setup, maintenance, and agent-time commands.",
+    "Keeps secrets and network access bounded.",
+    "Requires comparable execution evidence."
+  ],
+  "risk": "high"
+}

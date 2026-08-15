@@ -1,0 +1,36 @@
+{
+  "task_id": "static-validation",
+  "objective": "Repository static validation finishes with no errors or warnings.",
+  "context": [
+    "The repository uses Python 3.11+ validation scripts."
+  ],
+  "assumptions": [],
+  "acceptance": [
+    {
+      "id": "A1",
+      "criterion": "Manifest drift validation passes.",
+      "required": true,
+      "evidence_hint": "Run the manifest renderer in check mode."
+    },
+    {
+      "id": "A2",
+      "criterion": "Repository validation and unit tests pass.",
+      "required": true,
+      "evidence_hint": "Run strict validation and the full unit-test suite."
+    }
+  ],
+  "non_goals": [
+    "Live Codex or Claude behavior qualification."
+  ],
+  "constraints": [
+    "Evidence must come from the current workspace."
+  ],
+  "risk": {
+    "level": "low",
+    "summary": "Static repository checks only."
+  },
+  "reopen_conditions": [
+    "A required command fails.",
+    "A generated manifest drifts."
+  ]
+}

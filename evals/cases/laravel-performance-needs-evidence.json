@@ -1,0 +1,15 @@
+{
+  "id": "laravel-performance-needs-evidence",
+  "revision": 1,
+  "package": "engineering-foundation-laravel",
+  "prompt": "Improve a slow Eloquent endpoint.",
+  "expected_activation": [
+    "laravel-project-engineering"
+  ],
+  "forbidden_activation": [],
+  "behavior_assertions": [
+    "Measures query shape before adding cache or indexes.",
+    "Provides comparable before/after evidence."
+  ],
+  "risk": "medium"
+}

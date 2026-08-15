@@ -1,0 +1,43 @@
+{
+  "name": "engineering-foundation-core",
+  "version": "0.2.0",
+  "description": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "engineering",
+    "planning",
+    "verification",
+    "review",
+    "handoff",
+    "research",
+    "multi-agent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Engineering Foundation Core",
+    "shortDescription": "Lean planning, implementation, review, verification, and handoff.",
+    "longDescription": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
+    "developerName": "EgoistDeveloper",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+    "privacyPolicyURL": "https://github.com/EgoistDeveloper/codex-skills-foundation/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/EgoistDeveloper/codex-skills-foundation/blob/main/TERMS.md",
+    "defaultPrompt": [
+      "Complete this task with the smallest defensible change and fresh evidence.",
+      "Review this diff against its task contract and report only material findings."
+    ],
+    "brandColor": "#1F2937",
+    "screenshots": []
+  }
+}

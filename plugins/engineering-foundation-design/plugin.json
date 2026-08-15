@@ -1,0 +1,29 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-foundation-design",
+  "version": "0.2.0",
+  "description": "Single-direction interface design, design-contract authoring, implementation states, accessibility, and rendered visual verification.",
+  "author": {
+    "name": "EgoistDeveloper",
+    "url": "https://github.com/EgoistDeveloper"
+  },
+  "homepage": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "repository": "https://github.com/EgoistDeveloper/codex-skills-foundation",
+  "license": "MIT",
+  "keywords": [
+    "design-system",
+    "ui",
+    "typography",
+    "accessibility",
+    "responsive",
+    "visual-qa"
+  ],
+  "extensions": {
+    "com.openai.codex": {
+      "manifest": "./.codex-plugin/plugin.json"
+    },
+    "com.anthropic.claude-code": {
+      "manifest": "./.claude-plugin/plugin.json"
+    }
+  }
+}
