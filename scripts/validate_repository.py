@@ -50,6 +50,19 @@ CODEX_INTERFACE_REQUIRED = {
 }
 ALLOWED_OPENAI_AUTH = {"ON_INSTALL", "ON_USE"}
 ALLOWED_OPENAI_INSTALLATION = {"AVAILABLE", "INSTALLED_BY_DEFAULT", "NOT_AVAILABLE"}
+EXCLUDED_PATH_PARTS = {
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".nox",
+}
 
 
 class Report:
@@ -66,6 +79,14 @@ class Report:
 
 def rel(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
+
+
+def is_excluded_path(path: Path) -> bool:
+    try:
+        parts = path.relative_to(ROOT).parts
+    except ValueError:
+        return False
+    return any(part in EXCLUDED_PATH_PARTS for part in parts)
 
 
 def load_json(path: Path, report: Report) -> Any:
@@ -513,7 +534,7 @@ def validate_evals(plugins: list[dict[str, Any]], all_skills: set[str], report: 
 
 def validate_markdown_links(report: Report) -> None:
     for path in ROOT.rglob("*.md"):
-        if ".git" in path.parts or "dist" in path.parts:
+        if is_excluded_path(path):
             continue
         try:
             text = path.read_text(encoding="utf-8")
@@ -540,7 +561,7 @@ def validate_markdown_links(report: Report) -> None:
 def validate_security_and_placeholders(report: Report) -> None:
     allowed_placeholder_files = set()
     for path in ROOT.rglob("*"):
-        if not path.is_file() or ".git" in path.parts or "dist" in path.parts:
+        if not path.is_file() or is_excluded_path(path):
             continue
         try:
             text = path.read_text(encoding="utf-8")

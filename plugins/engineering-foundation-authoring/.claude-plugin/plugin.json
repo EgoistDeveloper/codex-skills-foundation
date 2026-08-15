@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "displayName": "Agent Skill Authoring Foundation",
   "name": "engineering-foundation-authoring",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Author and maintain compact Agent Skills and plugin packages with precise triggers, progressive disclosure, provenance, validation, and eval coverage.",
   "author": {
     "name": "EgoistDeveloper",
