@@ -33,6 +33,7 @@ class PackagingTests(unittest.TestCase):
                     self.assertTrue(all(not Path(name).is_absolute() and ".." not in Path(name).parts for name in names))
                     for info in zf.infolist():
                         self.assertEqual(info.create_system, 3)
+                        self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
                         mode = info.external_attr >> 16
                         self.assertEqual(mode & 0o170000, stat.S_IFREG)
                         self.assertEqual(mode & 0o777, 0o644)
