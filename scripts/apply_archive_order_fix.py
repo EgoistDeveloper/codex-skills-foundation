@@ -32,20 +32,6 @@ def build_archive''',
 )
 text = replace_once(
     text,
-    '    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:',
-    '''    # The packages are tiny. Store entries without DEFLATE so bytes do not depend on
-    # platform-specific zlib builds or Python patch releases.
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:''',
-    "stored archive mode",
-)
-text = replace_once(
-    text,
-    "            info.compress_type = zipfile.ZIP_DEFLATED",
-    "            info.compress_type = zipfile.ZIP_STORED",
-    "entry storage mode",
-)
-text = replace_once(
-    text,
     '''        checksum_path.write_text(
             "".join(f"{digest}  {path.name}\\n" for path, digest in built),
             encoding="utf-8",
@@ -64,12 +50,6 @@ text = replace_once(
     "                    names = zf.namelist()",
     "                    names = zf.namelist()\n                    self.assertEqual(names, sorted(names))",
     "archive order assertion",
-)
-text = replace_once(
-    text,
-    "                        self.assertEqual(info.create_system, 3)",
-    "                        self.assertEqual(info.create_system, 3)\n                        self.assertEqual(info.compress_type, zipfile.ZIP_STORED)",
-    "stored entry assertion",
 )
 test.write_text(text, encoding="utf-8")
 print("archive order/newline patch: PASS")
