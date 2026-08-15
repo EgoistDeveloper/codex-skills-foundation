@@ -6,6 +6,7 @@ on:
       - fix/ignore-local-environments
     paths:
       - ".github/workflows/apply-archive-order-fix.yml"
+      - "scripts/apply_archive_order_fix.py"
 
 permissions:
   contents: write
