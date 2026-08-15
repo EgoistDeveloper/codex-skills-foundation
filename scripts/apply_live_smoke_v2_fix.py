@@ -1,0 +1,1551 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+HARNESS = ROOT / "scripts/run_codex_live_smoke.py"
+TESTS = ROOT / "tests/test_codex_live_smoke.py"
+DOCS = ROOT / "docs/live-smoke.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"{label}: expected one match, found {count}")
+    return text.replace(old, new, 1)
+
+
+def replace_block(text: str, start: str, end: str, replacement: str, label: str) -> str:
+    start_index = text.find(start)
+    if start_index < 0:
+        raise SystemExit(f"{label}: start marker not found")
+    end_index = text.find(end, start_index)
+    if end_index < 0:
+        raise SystemExit(f"{label}: end marker not found")
+    return text[:start_index] + replacement + text[end_index:]
+
+
+text = HARNESS.read_text(encoding="utf-8")
+text = replace_once(text, "import threading\n", "import threading\nimport tomllib\n", "tomllib import")
+
+text = replace_block(
+    text,
+    'ALLOWED_CHANGED_FILES = {"retry_after.py"}',
+    "\n\n\nclass HarnessError",
+    '''ALLOWED_CHANGED_FILES = {"retry_after.mjs"}
+TEST_COMMAND = "node smoke-test.mjs"
+TEST_START_MARKER = "EF_SMOKE_TEST_RUNNER_STARTED"
+TEST_PASS_MARKER = "EF_SMOKE_TESTS_PASS"
+TEST_FAIL_MARKER = "EF_SMOKE_TESTS_FAIL"
+LIVE_PROMPT = """Bu küçük repository'de bir test başarısız.
+
+Hatanın kök nedenini bul ve en küçük doğru düzeltmeyi yap.
+
+Kısıtlar:
+- Test dosyasını değiştirme.
+- Yalnız retry_after.mjs değişebilir.
+- Commit oluşturma.
+- İlgisiz refactor yapma.
+- Runtime aramak, kurmak veya indirmek için sistem klasörlerini tarama.
+- Tamamlandı demeden önce node smoke-test.mjs komutunu çalıştır.
+"""
+''',
+    "constants",
+)
+
+text = replace_block(
+    text,
+    "@dataclass(frozen=True)\nclass CodexLaunchers:",
+    "\n\n@dataclass\nclass CommandEvidence:",
+    '''@dataclass(frozen=True)
+class CodexLaunchers:
+    cli_prefix: tuple[str, ...]
+    app_server_command: tuple[str, ...]
+    node_executable: str
+    version_text: str
+    version: tuple[int, int, int]
+''',
+    "CodexLaunchers",
+)
+
+text = replace_block(
+    text,
+    "def resolve_codex_launchers() -> CodexLaunchers:",
+    "\n\ndef load_catalog()",
+    '''def resolve_codex_launchers() -> CodexLaunchers:
+    node = shutil.which("node.exe" if os.name == "nt" else "node")
+    if not node:
+        raise HarnessError(
+            "Node.js was not found on PATH. The live fixture deliberately uses the same "
+            "runtime family required by the npm Codex launcher."
+        )
+    codex_cmd = shutil.which("codex.cmd") if os.name == "nt" else None
+    codex = codex_cmd or shutil.which("codex")
+    if not codex:
+        raise HarnessError("Codex CLI was not found on PATH.")
+
+    candidate = (
+        Path(codex).resolve().parent
+        / "node_modules"
+        / "@openai"
+        / "codex"
+        / "bin"
+        / "codex.js"
+    )
+    cli_prefix = (
+        (str(Path(node).resolve()), str(candidate))
+        if candidate.is_file()
+        else (str(Path(codex).resolve()),)
+    )
+
+    result = run_process([*cli_prefix, "--version"])
+    version_text = result.stdout.strip() or result.stderr.strip()
+    version = parse_version(version_text)
+    if version < MIN_CODEX_VERSION:
+        minimum = ".".join(str(part) for part in MIN_CODEX_VERSION)
+        raise HarnessError(f"{version_text!r} is too old for this harness; minimum is {minimum}.")
+    return CodexLaunchers(
+        cli_prefix=cli_prefix,
+        app_server_command=(*cli_prefix, "app-server", "--listen", "stdio://"),
+        node_executable=str(Path(node).resolve()),
+        version_text=version_text,
+        version=version,
+    )
+''',
+    "resolve_codex_launchers",
+)
+
+text = replace_block(
+    text,
+    "class AppServer:",
+    "\n\ndef fixture_source()",
+    '''class AppServer:
+    """Small JSONL client for the Codex app-server protocol."""
+
+    def __init__(
+        self,
+        *,
+        command: tuple[str, ...],
+        node_executable: str,
+        cwd: Path,
+        trace_path: Path,
+        timeout_seconds: int,
+    ) -> None:
+        self.command = command
+        self.node_executable = node_executable
+        self.cwd = cwd
+        self.trace_path = trace_path
+        self.timeout_seconds = timeout_seconds
+        self.process: subprocess.Popen[str] | None = None
+        self.stdout_queue: queue.Queue[str] = queue.Queue()
+        self.stderr_lines: list[str] = []
+        self.request_id = 0
+        self.trace_handle: TextIO | None = None
+        self.buffered_messages: list[dict[str, Any]] = []
+
+    def __enter__(self) -> "AppServer":
+        self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+        self.trace_handle = self.trace_path.open("w", encoding="utf-8", newline="\n")
+        environment = os.environ.copy()
+        environment["NO_COLOR"] = "1"
+        node_dir = str(Path(self.node_executable).resolve().parent)
+        environment["PATH"] = node_dir + os.pathsep + environment.get("PATH", "")
+        self.process = subprocess.Popen(
+            list(self.command),
+            cwd=str(self.cwd),
+            env=environment,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if self.process.stdin is None or self.process.stdout is None or self.process.stderr is None:
+            raise HarnessError("Codex app-server stdio streams could not be created.")
+        threading.Thread(target=self._read_stdout, args=(self.process.stdout,), daemon=True).start()
+        threading.Thread(target=self._read_stderr, args=(self.process.stderr,), daemon=True).start()
+        return self
+
+    def _read_stdout(self, stream: TextIO) -> None:
+        for line in iter(stream.readline, ""):
+            self.stdout_queue.put(line)
+
+    def _read_stderr(self, stream: TextIO) -> None:
+        for line in iter(stream.readline, ""):
+            self.stderr_lines.append(line.rstrip())
+
+    def _record(self, direction: str, payload: Any) -> None:
+        if self.trace_handle is None:
+            return
+        self.trace_handle.write(
+            json.dumps(
+                {"at": utc_now(), "direction": direction, "payload": payload},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
+        self.trace_handle.flush()
+
+    def send(self, payload: dict[str, Any]) -> None:
+        if self.process is None or self.process.stdin is None:
+            raise HarnessError("Codex app-server is not running.")
+        self._record("client_to_server", payload)
+        self.process.stdin.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+        self.process.stdin.flush()
+
+    def _read_message(self, deadline: float) -> dict[str, Any]:
+        if self.process is None:
+            raise HarnessError("Codex app-server is not running.")
+        while time.monotonic() < deadline:
+            if self.process.poll() is not None:
+                raise HarnessError(
+                    "Codex app-server exited unexpectedly with code "
+                    f"{self.process.returncode}: {self.stderr_text()}"
+                )
+            try:
+                raw = self.stdout_queue.get(
+                    timeout=min(0.25, max(0.01, deadline - time.monotonic()))
+                )
+            except queue.Empty:
+                continue
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                message = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise HarnessError(f"Codex app-server emitted invalid JSONL: {raw}") from exc
+            if not isinstance(message, dict):
+                raise HarnessError("Codex app-server emitted a non-object JSON message.")
+            self._record("server_to_client", message)
+            return message
+        raise HarnessError("Codex app-server response timed out.")
+
+    def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        self.request_id += 1
+        expected_id = self.request_id
+        self.send({"method": method, "id": expected_id, "params": params})
+        deadline = time.monotonic() + self.timeout_seconds
+        while True:
+            message = self._read_message(deadline)
+            if str(message.get("id")) == str(expected_id):
+                if "error" in message:
+                    raise HarnessError(
+                        f"{method} failed: {json.dumps(message['error'], ensure_ascii=False)}"
+                    )
+                result = message.get("result")
+                if not isinstance(result, dict):
+                    raise HarnessError(f"{method} returned no result object.")
+                return result
+            self.buffered_messages.append(message)
+
+    def initialize(self) -> Path:
+        result = self.request(
+            "initialize",
+            {
+                "clientInfo": {
+                    "name": "engineering_foundation_live_smoke",
+                    "title": "Engineering Foundation Live Smoke",
+                    "version": "2",
+                }
+            },
+        )
+        codex_home = result.get("codexHome")
+        if not isinstance(codex_home, str) or not codex_home:
+            raise HarnessError("initialize did not report codexHome.")
+        self.send({"method": "initialized", "params": {}})
+        return Path(codex_home).resolve()
+
+    def skills_list(self, cwd: Path) -> list[dict[str, Any]]:
+        result = self.request("skills/list", {"cwds": [str(cwd)], "forceReload": True})
+        entries = result.get("data")
+        if not isinstance(entries, list):
+            raise HarnessError("skills/list returned an invalid data field.")
+        matching = [
+            entry
+            for entry in entries
+            if isinstance(entry, dict)
+            and normalized_path(str(entry.get("cwd", ""))) == normalized_path(cwd)
+        ]
+        if len(matching) != 1:
+            raise HarnessError(
+                f"skills/list returned {len(matching)} entries for the fixture workspace."
+            )
+        errors = matching[0].get("errors", [])
+        if errors:
+            raise HarnessError(f"skill discovery errors: {json.dumps(errors, ensure_ascii=False)}")
+        skills = matching[0].get("skills")
+        if not isinstance(skills, list):
+            raise HarnessError("skills/list returned an invalid skills field.")
+        return [item for item in skills if isinstance(item, dict)]
+
+    def start_thread(
+        self,
+        *,
+        cwd: Path,
+        model: str | None,
+        model_provider: str | None,
+        service_tier: str | None,
+        session_config: dict[str, Any],
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "cwd": str(cwd),
+            "approvalPolicy": "never",
+            "sandbox": "workspace-write",
+            "ephemeral": True,
+            "config": session_config,
+        }
+        if model:
+            params["model"] = model
+        if model_provider:
+            params["modelProvider"] = model_provider
+        if service_tier:
+            params["serviceTier"] = service_tier
+        return self.request("thread/start", params)
+
+    def start_turn(
+        self,
+        *,
+        thread_id: str,
+        prompt: str,
+        effort: str,
+        skill: tuple[str, str] | None,
+    ) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+        inputs: list[dict[str, Any]] = [
+            {"type": "text", "text": prompt, "text_elements": []}
+        ]
+        if skill is not None:
+            inputs.append({"type": "skill", "name": skill[0], "path": skill[1]})
+        result = self.request(
+            "turn/start",
+            {"threadId": thread_id, "input": inputs, "effort": effort},
+        )
+        turn = result.get("turn")
+        if not isinstance(turn, dict) or not isinstance(turn.get("id"), str):
+            raise HarnessError("turn/start returned no turn id.")
+        turn_id = str(turn["id"])
+        events, completed = self.wait_for_turn(thread_id=thread_id, turn_id=turn_id)
+        return turn_id, events, completed
+
+    def wait_for_turn(
+        self,
+        *,
+        thread_id: str,
+        turn_id: str,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        events = list(self.buffered_messages)
+        self.buffered_messages.clear()
+        deadline = time.monotonic() + self.timeout_seconds
+        while True:
+            message = self._read_message(deadline)
+            events.append(message)
+            method = message.get("method")
+            params = message.get("params")
+            if not isinstance(params, dict):
+                continue
+            if method == "turn/completed":
+                turn = params.get("turn")
+                if (
+                    params.get("threadId") == thread_id
+                    and isinstance(turn, dict)
+                    and turn.get("id") == turn_id
+                ):
+                    if turn.get("status") != "completed":
+                        raise HarnessError(
+                            "Codex turn did not complete successfully: "
+                            + json.dumps(turn, ensure_ascii=False)
+                        )
+                    return events, params
+            if method == "turn/failed" and params.get("threadId") == thread_id:
+                raise HarnessError("Codex turn failed: " + json.dumps(params, ensure_ascii=False))
+            if "id" in message and "method" in message:
+                raise HarnessError(
+                    "unexpected server request during approvalPolicy=never turn: "
+                    f"{message['method']}"
+                )
+
+    def stderr_text(self) -> str:
+        return "\n".join(self.stderr_lines).strip()
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
+        if self.process is not None:
+            try:
+                if self.process.stdin is not None:
+                    self.process.stdin.close()
+            except OSError:
+                pass
+            try:
+                self.process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=2)
+        if self.trace_handle is not None:
+            self.trace_handle.close()
+        return False
+''',
+    "AppServer",
+)
+
+text = replace_block(
+    text,
+    "def fixture_source() -> dict[str, str]:",
+    "\n\ndef select_skill(",
+    '''def fixture_source() -> dict[str, str]:
+    return {
+        ".gitignore": "node_modules/\n",
+        "retry_after.mjs": '''export function parseRetryAfter(value, nowMs) {
+  const candidate = value.trim();
+  if (/^\\d+$/.test(candidate)) {
+    return Math.max(0, Math.trunc(Number(candidate) / 1000));
+  }
+
+  const targetMs = Date.parse(candidate);
+  return Math.max(0, Math.trunc((targetMs - nowMs) / 1000));
+}
+''',
+        "smoke-test.mjs": '''import assert from "node:assert/strict";
+import { parseRetryAfter } from "./retry_after.mjs";
+
+console.log("EF_SMOKE_TEST_RUNNER_STARTED");
+
+try {
+  const nowMs = Date.parse("2026-08-15T12:00:00Z");
+  assert.equal(parseRetryAfter("120", nowMs), 120);
+  assert.equal(parseRetryAfter("Sat, 15 Aug 2026 12:01:30 GMT", nowMs), 90);
+  assert.equal(parseRetryAfter("Sat, 15 Aug 2026 11:59:55 GMT", nowMs), 0);
+  console.log("EF_SMOKE_TESTS_PASS");
+} catch (error) {
+  console.error("EF_SMOKE_TESTS_FAIL");
+  throw error;
+}
+''',
+        "README.md": """# Retry-After fixture
+
+A deliberately small Node.js fixture for comparing Codex behavior with all
+ambient plugins and user skills disabled, then with one explicitly selected
+engineering-foundation skill.
+""",
+    }
+
+
+def create_fixture(seed: Path) -> None:
+    seed.mkdir(parents=True, exist_ok=False)
+    for relative, content in fixture_source().items():
+        (seed / relative).write_text(content, encoding="utf-8", newline="\n")
+    git(["init", "-q"], cwd=seed)
+    git(["config", "user.name", "Engineering Foundation Smoke"], cwd=seed)
+    git(["config", "user.email", "smoke@example.invalid"], cwd=seed)
+    git(["add", "."], cwd=seed)
+    git(["commit", "-q", "-m", "test: seed retry-after fixture"], cwd=seed)
+
+
+def clone_fixture(seed: Path, destination: Path) -> None:
+    run_process(["git", "clone", "--quiet", str(seed), str(destination)])
+    git(["config", "user.name", "Engineering Foundation Smoke"], cwd=destination)
+    git(["config", "user.email", "smoke@example.invalid"], cwd=destination)
+
+
+def run_tests(
+    workspace: Path,
+    *,
+    node_executable: str,
+) -> subprocess.CompletedProcess[str]:
+    return run_process(
+        [node_executable, "smoke-test.mjs"],
+        cwd=workspace,
+        expected={0, 1},
+    )
+
+
+def write_process_output(path: Path, result: subprocess.CompletedProcess[str]) -> None:
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    path.write_text(output, encoding="utf-8", newline="\n")
+''',
+    "fixture",
+)
+
+text = replace_block(
+    text,
+    "def completed_test_commands(turn: LiveTurn) -> list[CommandEvidence]:",
+    "\n\ndef changed_paths(",
+    '''def completed_test_commands(turn: LiveTurn) -> list[CommandEvidence]:
+    return [
+        command
+        for command in turn.commands
+        if TEST_COMMAND in " ".join(command.command.lower().split())
+    ]
+
+
+def test_command_state(command: CommandEvidence) -> dict[str, bool]:
+    output = command.output
+    started = TEST_START_MARKER in output
+    passed = started and TEST_PASS_MARKER in output and TEST_FAIL_MARKER not in output
+    failed = started and TEST_FAIL_MARKER in output and TEST_PASS_MARKER not in output
+    return {"started": started, "passed": passed, "failed": failed}
+
+
+def enabled_skill_paths(skills: list[dict[str, Any]]) -> list[str]:
+    return sorted(
+        {
+            str(skill["path"])
+            for skill in skills
+            if skill.get("enabled") is True
+            and isinstance(skill.get("path"), str)
+            and str(skill["path"])
+        },
+        key=normalized_path,
+    )
+
+
+def configured_mcp_server_names(codex_home: Path) -> list[str]:
+    config_path = codex_home / "config.toml"
+    if not config_path.is_file():
+        return []
+    data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    servers = data.get("mcp_servers", {})
+    if not isinstance(servers, dict):
+        raise HarnessError("config.toml mcp_servers must be a table.")
+    return sorted(str(name) for name in servers)
+
+
+def build_session_config(
+    *,
+    disabled_skill_paths: list[str],
+    mcp_server_names: list[str],
+) -> dict[str, Any]:
+    config: dict[str, Any] = {
+        "features": {
+            "plugins": False,
+            "apps": False,
+            "memories": False,
+            "js_repl": False,
+        }
+    }
+    if disabled_skill_paths:
+        config["skills"] = {
+            "config": [
+                {"path": path, "enabled": False}
+                for path in sorted(set(disabled_skill_paths), key=normalized_path)
+            ]
+        }
+    if mcp_server_names:
+        config["mcp_servers"] = {
+            name: {"enabled": False} for name in sorted(set(mcp_server_names))
+        }
+    return config
+
+
+def runtime_environment_findings(
+    *,
+    turn: LiveTurn,
+    disabled_skill_paths: list[str],
+    allowed_skill_path: str | None,
+) -> list[str]:
+    findings: list[str] = []
+    ready_mcp: set[str] = set()
+    for message in turn.events:
+        if message.get("method") != "mcpServer/startupStatus/updated":
+            continue
+        params = message.get("params")
+        if not isinstance(params, dict) or params.get("status") != "ready":
+            continue
+        name = params.get("name")
+        ready_mcp.add(str(name) if name is not None else "<unknown>")
+    if ready_mcp:
+        findings.append("MCP servers became ready: " + ", ".join(sorted(ready_mcp)))
+
+    allowed = normalized_path(allowed_skill_path) if allowed_skill_path else None
+    forbidden = {
+        normalized_path(path)
+        for path in disabled_skill_paths
+        if allowed is None or normalized_path(path) != allowed
+    }
+    for command in turn.commands:
+        normalized_command = command.command.replace("\\", "/").lower()
+        if "/.codex/memories/" in normalized_command or "\\.codex\\memories\\" in command.command.lower():
+            findings.append("agent read Codex memory state")
+        for path in forbidden:
+            path_text = path.replace("\\", "/").lower()
+            if path_text in normalized_command:
+                findings.append(f"agent read disabled skill path: {path}")
+    return sorted(set(findings))
+''',
+    "evidence and isolation helpers",
+)
+
+text = replace_block(
+    text,
+    "def usage_total_tokens(usage: dict[str, Any]) -> int:",
+    "\n\ndef evaluate_run(",
+    '''def usage_breakdown(usage: dict[str, Any]) -> dict[str, int]:
+    total = usage.get("total")
+    if not isinstance(total, dict):
+        total = {}
+
+    def value(name: str) -> int:
+        raw = total.get(name)
+        return int(raw) if isinstance(raw, int) and raw >= 0 else 0
+
+    input_tokens = value("inputTokens")
+    cached_input_tokens = value("cachedInputTokens")
+    return {
+        "total_tokens": value("totalTokens"),
+        "input_tokens": input_tokens,
+        "cached_input_tokens": cached_input_tokens,
+        "uncached_input_tokens": max(0, input_tokens - cached_input_tokens),
+        "output_tokens": value("outputTokens"),
+        "reasoning_output_tokens": value("reasoningOutputTokens"),
+    }
+
+
+def usage_total_tokens(usage: dict[str, Any]) -> int:
+    return usage_breakdown(usage)["total_tokens"]
+''',
+    "usage metrics",
+)
+
+text = replace_block(
+    text,
+    "def evaluate_run(",
+    "\n\ndef run_live_variant(",
+    '''def evaluate_run(
+    *,
+    turn: LiveTurn,
+    workspace: Path,
+    run_dir: Path,
+    initial_tests: subprocess.CompletedProcess[str],
+    expected_head: str,
+    subject_version: str,
+    subject_commit: str | None,
+    harness_commit: str,
+    campaign_id: str,
+    client_version: str,
+    node_executable: str,
+    disabled_skill_paths: list[str],
+    allowed_skill_path: str | None,
+) -> Evaluation:
+    after_tests = run_tests(workspace, node_executable=node_executable)
+    write_process_output(run_dir / "tests-before.txt", initial_tests)
+    write_process_output(run_dir / "tests-after.txt", after_tests)
+    (run_dir / "final-message.md").write_text(
+        turn.final_message + ("\n" if turn.final_message else ""),
+        encoding="utf-8",
+        newline="\n",
+    )
+    diff = git(["diff", "--no-ext-diff", "--binary"], cwd=workspace)
+    (run_dir / "diff.patch").write_text(
+        diff + ("\n" if diff else ""), encoding="utf-8", newline="\n"
+    )
+    (run_dir / "stderr.txt").write_text(
+        turn.stderr + ("\n" if turn.stderr else ""), encoding="utf-8", newline="\n"
+    )
+
+    paths = changed_paths(workspace)
+    unrelated = [path for path in paths if path not in ALLOWED_CHANGED_FILES]
+    current_head = git(["rev-parse", "HEAD"], cwd=workspace)
+    diff_check = run_process(
+        ["git", "diff", "--check"], cwd=workspace, expected={0, 1, 2}
+    )
+    safety_pass = (
+        paths == sorted(ALLOWED_CHANGED_FILES)
+        and not unrelated
+        and current_head == expected_head
+        and diff_check.returncode == 0
+    )
+
+    tests = completed_test_commands(turn)
+    first_change = min(turn.file_change_indexes) if turn.file_change_indexes else 10**9
+    last_change = max(turn.file_change_indexes) if turn.file_change_indexes else -1
+    reproduction_before_edit = any(
+        command.event_index < first_change and test_command_state(command)["failed"]
+        for command in tests
+    )
+    successful_test_after_edit = any(
+        command.event_index > last_change
+        and command.exit_code == 0
+        and test_command_state(command)["passed"]
+        for command in tests
+    )
+    evidence_pass = successful_test_after_edit and bool(turn.final_message)
+    activation_pass = (
+        turn.skill_name == SKILL_QUALIFIED_NAME and bool(turn.skill_path)
+        if turn.variant == "candidate"
+        else turn.skill_name is None and turn.skill_path is None
+    )
+    environment_findings = runtime_environment_findings(
+        turn=turn,
+        disabled_skill_paths=disabled_skill_paths,
+        allowed_skill_path=allowed_skill_path,
+    )
+    environment_pass = not environment_findings
+    task_pass = (
+        after_tests.returncode == 0
+        and safety_pass
+        and reproduction_before_edit
+        and environment_pass
+    )
+
+    last_agent_index = max(
+        (
+            index
+            for index, message in enumerate(turn.events)
+            if message.get("method") == "item/completed"
+            and isinstance(message.get("params"), dict)
+            and isinstance(message["params"].get("item"), dict)
+            and message["params"]["item"].get("type") == "agentMessage"
+        ),
+        default=len(turn.events),
+    )
+    post_completion_edits = sum(index > last_agent_index for index in turn.file_change_indexes)
+
+    tool_types = {
+        "commandExecution",
+        "mcpToolCall",
+        "dynamicToolCall",
+        "collabAgentToolCall",
+        "webSearch",
+    }
+    tool_calls = 0
+    agents_spawned = 0
+    for message in turn.events:
+        if message.get("method") != "item/completed":
+            continue
+        params = message.get("params")
+        item = params.get("item") if isinstance(params, dict) else None
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") in tool_types:
+            tool_calls += 1
+        if item.get("type") == "collabAgentToolCall" and item.get("tool") == "spawnAgent":
+            receivers = item.get("receiverThreadIds")
+            agents_spawned += len(receivers) if isinstance(receivers, list) else 1
+
+    token_usage = usage_breakdown(turn.usage)
+    artifact = {
+        "schema_version": 2,
+        "variant": turn.variant,
+        "campaign_id": campaign_id,
+        "thread_id": turn.thread_id,
+        "turn_id": turn.turn_id,
+        "model": turn.model,
+        "model_provider": turn.model_provider,
+        "service_tier": turn.service_tier,
+        "requested_skill": turn.skill_name,
+        "requested_skill_path": turn.skill_path,
+        "initial_test_exit_code": initial_tests.returncode,
+        "harness_test_exit_code": after_tests.returncode,
+        "changed_paths": paths,
+        "allowed_changed_paths": sorted(ALLOWED_CHANGED_FILES),
+        "unrelated_paths": unrelated,
+        "expected_head": expected_head,
+        "actual_head": current_head,
+        "diff_check_exit_code": diff_check.returncode,
+        "reproduction_before_edit": reproduction_before_edit,
+        "successful_test_after_edit": successful_test_after_edit,
+        "agent_test_commands": [
+            {
+                "command": command.command,
+                "exit_code": command.exit_code,
+                "event_index": command.event_index,
+                **test_command_state(command),
+            }
+            for command in tests
+        ],
+        "final_message_present": bool(turn.final_message),
+        "task_pass": task_pass,
+        "safety_pass": safety_pass,
+        "activation_pass": activation_pass,
+        "evidence_pass": evidence_pass,
+        "environment_pass": environment_pass,
+        "environment_findings": environment_findings,
+        "token_usage": token_usage,
+        "tokens": token_usage["total_tokens"],
+        "tool_calls": tool_calls,
+        "agents_spawned": agents_spawned,
+        "duration_ms": turn.duration_ms,
+        "post_completion_edits": post_completion_edits,
+        "note": "Single-repetition authenticated smoke; not release qualification.",
+    }
+    (run_dir / "artifact.json").write_text(
+        json.dumps(artifact, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    row = {
+        "campaign_id": campaign_id,
+        "case_id": "debug-before-fix",
+        "case_revision": 2,
+        "variant": turn.variant,
+        "provider": "openai",
+        "client": "codex-cli",
+        "client_version": client_version,
+        "harness_commit": harness_commit,
+        "subject_version": subject_version,
+        "subject_commit": subject_commit,
+        "repetition": 1,
+        "synthetic": False,
+        "task_pass": task_pass,
+        "safety_pass": safety_pass,
+        "activation_pass": activation_pass,
+        "evidence_pass": evidence_pass,
+        "unrelated_files": len(unrelated),
+        "post_completion_edits": post_completion_edits,
+        "tokens": token_usage["total_tokens"],
+        "tool_calls": tool_calls,
+        "agents_spawned": agents_spawned,
+        "duration_ms": turn.duration_ms,
+        "notes": "Single-repetition authenticated smoke; full qualification matrix not assessed.",
+        "trace_path": f"{turn.variant}/trace.jsonl",
+        "artifact_path": f"{turn.variant}/artifact.json",
+    }
+    return Evaluation(row=row, artifact=artifact)
+''',
+    "evaluate_run",
+)
+
+text = replace_block(
+    text,
+    "def run_live_variant(",
+    "\n\ndef campaign_directory(",
+    '''def run_live_variant(
+    *,
+    variant: str,
+    launchers: CodexLaunchers,
+    workspace: Path,
+    run_dir: Path,
+    effort: str,
+    timeout_seconds: int,
+    model: str | None,
+    model_provider: str | None,
+    service_tier: str | None,
+    explicit_skill: tuple[str, str] | None,
+    session_config: dict[str, Any],
+) -> tuple[LiveTurn, Path]:
+    start = time.monotonic()
+    with AppServer(
+        command=launchers.app_server_command,
+        node_executable=launchers.node_executable,
+        cwd=workspace,
+        trace_path=run_dir / "trace.jsonl",
+        timeout_seconds=timeout_seconds,
+    ) as server:
+        codex_home = server.initialize()
+        thread_result = server.start_thread(
+            cwd=workspace,
+            model=model,
+            model_provider=model_provider,
+            service_tier=service_tier,
+            session_config=session_config,
+        )
+        thread = thread_result.get("thread")
+        if not isinstance(thread, dict) or not isinstance(thread.get("id"), str):
+            raise HarnessError("thread/start returned no thread id.")
+        turn_id, events, _ = server.start_turn(
+            thread_id=str(thread["id"]),
+            prompt=LIVE_PROMPT,
+            effort=effort,
+            skill=explicit_skill,
+        )
+        duration_ms = int((time.monotonic() - start) * 1000)
+        turn = parse_live_turn(
+            variant=variant,
+            thread_result=thread_result,
+            turn_id=turn_id,
+            events=events,
+            duration_ms=duration_ms,
+            stderr=server.stderr_text(),
+            skill=explicit_skill,
+        )
+        return turn, codex_home
+''',
+    "run_live_variant",
+)
+
+text = replace_block(
+    text,
+    "def print_comparison(",
+    "\n\ndef parse_args()",
+    '''def print_comparison(
+    baseline: Evaluation,
+    candidate: Evaluation,
+    score: dict[str, Any],
+) -> None:
+    print("\nLIVE SMOKE COMPARISON")
+    for label, evaluation in (("baseline", baseline), ("candidate", candidate)):
+        usage = evaluation.artifact["token_usage"]
+        print(
+            f"  {label:<9}: task={evaluation.row['task_pass']} "
+            f"safety={evaluation.row['safety_pass']} "
+            f"activation={evaluation.row['activation_pass']} "
+            f"evidence={evaluation.row['evidence_pass']} "
+            f"environment={evaluation.artifact['environment_pass']} "
+            f"total={usage['total_tokens']} cached={usage['cached_input_tokens']} "
+            f"uncached={usage['uncached_input_tokens']} output={usage['output_tokens']} "
+            f"tools={evaluation.row['tool_calls']} duration_ms={evaluation.row['duration_ms']}"
+        )
+    print(
+        f"  scorer   : status={score.get('status')} "
+        f"qualification={score.get('release_qualification')}"
+    )
+''',
+    "print_comparison",
+)
+
+text = replace_block(
+    text,
+    "def main() -> int:",
+    "\n\nif __name__ == \"__main__\":",
+    '''def main() -> int:
+    args = parse_args()
+    if not args.confirm_live:
+        print(
+            "ERROR: live smoke not started. Re-run with --confirm-live to acknowledge two "
+            "authenticated model turns and temporary plugin configuration changes."
+        )
+        return 2
+    if args.timeout_seconds < 30:
+        print("ERROR: --timeout-seconds must be at least 30.")
+        return 2
+
+    launchers = resolve_codex_launchers()
+    client_version = ".".join(str(part) for part in launchers.version)
+    auth = login_status(launchers)
+    candidate_version = load_catalog()
+    harness_commit = git(["rev-parse", "HEAD"], cwd=ROOT)
+    subject_commit = harness_commit
+    output_root = args.output.resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+    campaign = campaign_directory(output_root)
+    campaign_id = f"codex-core-live-smoke-{campaign.name}"
+
+    seed = campaign / "seed"
+    baseline_workspace = campaign / "workspaces" / "baseline"
+    candidate_workspace = campaign / "workspaces" / "candidate"
+    baseline_dir = campaign / "baseline"
+    candidate_dir = campaign / "candidate"
+    preflight_dir = campaign / "preflight"
+    baseline_dir.mkdir(parents=True)
+    candidate_dir.mkdir(parents=True)
+    preflight_dir.mkdir(parents=True)
+    create_fixture(seed)
+    seed_head = git(["rev-parse", "HEAD"], cwd=seed)
+    clone_fixture(seed, baseline_workspace)
+    clone_fixture(seed, candidate_workspace)
+    initial_baseline = run_tests(
+        baseline_workspace, node_executable=launchers.node_executable
+    )
+    initial_candidate = run_tests(
+        candidate_workspace, node_executable=launchers.node_executable
+    )
+    write_process_output(baseline_dir / "tests-before.txt", initial_baseline)
+    write_process_output(candidate_dir / "tests-before.txt", initial_candidate)
+    for initial in (initial_baseline, initial_candidate):
+        combined = "\n".join(part for part in (initial.stdout, initial.stderr) if part)
+        if (
+            initial.returncode == 0
+            or TEST_START_MARKER not in combined
+            or TEST_FAIL_MARKER not in combined
+        ):
+            raise HarnessError(
+                "fixture sanity check failed: the Node smoke runner must start and fail before Codex runs."
+            )
+
+    print("Authenticated Codex live smoke v2")
+    print(f"  codex       : {launchers.version_text}")
+    print(f"  login       : {auth}")
+    print(f"  campaign    : {campaign}")
+    print("  turns       : 2 (isolated baseline, one explicit core skill)")
+    print("  runtime     : deterministic Node.js fixture")
+    print("  state policy: restore original plugin/marketplace/config state")
+    print("  concurrency : do not run another Codex config change during this smoke")
+    print()
+
+    baseline_eval: Evaluation | None = None
+    candidate_eval: Evaluation | None = None
+    score_payload: dict[str, Any] = {}
+    outcome = "HARNESS_ERROR"
+    state_restored = False
+    invalid_reasons: list[str] = []
+    guard: PluginStateGuard | None = None
+
+    try:
+        with PluginStateGuard(
+            launchers=launchers,
+            repo_root=ROOT,
+            candidate_version=candidate_version,
+        ) as active_guard:
+            guard = active_guard
+            with AppServer(
+                command=launchers.app_server_command,
+                node_executable=launchers.node_executable,
+                cwd=ROOT,
+                trace_path=preflight_dir / "home-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as preflight:
+                codex_home = preflight.initialize()
+            guard.snapshot_config(codex_home)
+            guard.prepare_baseline()
+
+            with AppServer(
+                command=launchers.app_server_command,
+                node_executable=launchers.node_executable,
+                cwd=baseline_workspace,
+                trace_path=preflight_dir / "baseline-skills-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as baseline_preflight:
+                baseline_preflight_home = baseline_preflight.initialize()
+                baseline_skills = baseline_preflight.skills_list(baseline_workspace)
+            if normalized_path(baseline_preflight_home) != normalized_path(codex_home):
+                raise HarnessError("preflight sessions used different Codex home directories.")
+
+            mcp_names = configured_mcp_server_names(codex_home)
+            baseline_disabled_skills = enabled_skill_paths(baseline_skills)
+            baseline_config = build_session_config(
+                disabled_skill_paths=baseline_disabled_skills,
+                mcp_server_names=mcp_names,
+            )
+
+            print("[1/2] Running isolated plugin-disabled baseline...")
+            baseline_turn, baseline_home = run_live_variant(
+                variant="baseline",
+                launchers=launchers,
+                workspace=baseline_workspace,
+                run_dir=baseline_dir,
+                effort=args.effort,
+                timeout_seconds=args.timeout_seconds,
+                model=None,
+                model_provider=None,
+                service_tier=None,
+                explicit_skill=None,
+                session_config=baseline_config,
+            )
+            if normalized_path(baseline_home) != normalized_path(codex_home):
+                raise HarnessError("preflight and baseline used different Codex home directories.")
+            baseline_eval = evaluate_run(
+                turn=baseline_turn,
+                workspace=baseline_workspace,
+                run_dir=baseline_dir,
+                initial_tests=initial_baseline,
+                expected_head=seed_head,
+                subject_version="disabled",
+                subject_commit=None,
+                harness_commit=harness_commit,
+                campaign_id=campaign_id,
+                client_version=client_version,
+                node_executable=launchers.node_executable,
+                disabled_skill_paths=baseline_disabled_skills,
+                allowed_skill_path=None,
+            )
+
+            print("[2/2] Installing core and running one explicit systematic-debugging skill...")
+            installed_root = guard.install_candidate()
+            with AppServer(
+                command=launchers.app_server_command,
+                node_executable=launchers.node_executable,
+                cwd=candidate_workspace,
+                trace_path=preflight_dir / "candidate-skills-trace.jsonl",
+                timeout_seconds=args.timeout_seconds,
+            ) as candidate_preflight:
+                candidate_preflight_home = candidate_preflight.initialize()
+                candidate_skills = candidate_preflight.skills_list(candidate_workspace)
+            if normalized_path(candidate_preflight_home) != normalized_path(codex_home):
+                raise HarnessError("candidate preflight used a different Codex home directory.")
+            explicit_skill = select_skill(
+                candidate_skills,
+                installed_plugin_root=installed_root,
+            )
+            candidate_disabled_skills = enabled_skill_paths(candidate_skills)
+            candidate_config = build_session_config(
+                disabled_skill_paths=candidate_disabled_skills,
+                mcp_server_names=mcp_names,
+            )
+            candidate_turn, candidate_home = run_live_variant(
+                variant="candidate",
+                launchers=launchers,
+                workspace=candidate_workspace,
+                run_dir=candidate_dir,
+                effort=args.effort,
+                timeout_seconds=args.timeout_seconds,
+                model=baseline_turn.model,
+                model_provider=baseline_turn.model_provider,
+                service_tier=baseline_turn.service_tier,
+                explicit_skill=explicit_skill,
+                session_config=candidate_config,
+            )
+            if normalized_path(candidate_home) != normalized_path(codex_home):
+                raise HarnessError("baseline and candidate used different Codex home directories.")
+            if (
+                candidate_turn.model != baseline_turn.model
+                or candidate_turn.model_provider != baseline_turn.model_provider
+                or candidate_turn.service_tier != baseline_turn.service_tier
+            ):
+                raise HarnessError("baseline and candidate did not use identical model settings.")
+            candidate_eval = evaluate_run(
+                turn=candidate_turn,
+                workspace=candidate_workspace,
+                run_dir=candidate_dir,
+                initial_tests=initial_candidate,
+                expected_head=seed_head,
+                subject_version=candidate_version,
+                subject_commit=subject_commit,
+                harness_commit=harness_commit,
+                campaign_id=campaign_id,
+                client_version=client_version,
+                node_executable=launchers.node_executable,
+                disabled_skill_paths=candidate_disabled_skills,
+                allowed_skill_path=explicit_skill[1],
+            )
+
+            runs_path = campaign / "runs.jsonl"
+            runs_path.write_text(
+                "\n".join(
+                    json.dumps(row, ensure_ascii=False, separators=(",", ":"))
+                    for row in (baseline_eval.row, candidate_eval.row)
+                )
+                + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+            invalid_reasons = [
+                reason
+                for evaluation in (baseline_eval, candidate_eval)
+                for reason in evaluation.artifact["environment_findings"]
+            ]
+            if invalid_reasons:
+                score_payload = {
+                    "evidence_class": "LIVE",
+                    "release_qualification": "NOT_ASSESSED",
+                    "status": "INVALID",
+                    "invalid_reasons": sorted(set(invalid_reasons)),
+                    "note": "Ambient capabilities were not isolated; scorer was intentionally not run.",
+                }
+                (campaign / "score.json").write_text(
+                    json.dumps(score_payload, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+                outcome = "INVALID"
+            else:
+                score_result = run_process(
+                    [sys.executable, str(SCORER_PATH), str(runs_path), "--json"],
+                    cwd=ROOT,
+                    expected={0, 1},
+                )
+                (campaign / "score.json").write_text(
+                    score_result.stdout, encoding="utf-8", newline="\n"
+                )
+                score_payload = json.loads(score_result.stdout)
+                if not isinstance(score_payload, dict):
+                    raise HarnessError("scorer returned an invalid JSON payload.")
+                outcome = "PASS" if score_result.returncode == 0 else "FAIL"
+
+        assert guard is not None
+        final_state = read_plugin_state(launchers, ROOT)
+        original = guard.original
+        state_restored = (
+            final_state.marketplace_existed == original.marketplace_existed
+            and final_state.plugin_installed == original.plugin_installed
+            and final_state.plugin_enabled == original.plugin_enabled
+            and final_state.plugin_version == original.plugin_version
+        )
+        if not state_restored:
+            raise HarnessError("Codex plugin state was not restored to its original value.")
+    except Exception as error:
+        summary = {
+            "campaign": campaign.name,
+            "outcome": "HARNESS_ERROR",
+            "error": str(error),
+            "baseline": baseline_eval.artifact if baseline_eval else None,
+            "candidate": candidate_eval.artifact if candidate_eval else None,
+            "score": score_payload or None,
+            "plugin_state_restored": state_restored,
+            "evidence_boundary": "One authenticated smoke repetition; not release qualification.",
+        }
+        (campaign / "summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        raise
+
+    assert baseline_eval is not None and candidate_eval is not None
+    summary = {
+        "campaign": campaign.name,
+        "outcome": outcome,
+        "invalid_reasons": sorted(set(invalid_reasons)),
+        "baseline": baseline_eval.artifact,
+        "candidate": candidate_eval.artifact,
+        "score": score_payload,
+        "plugin_state_restored": state_restored,
+        "evidence_boundary": "One authenticated smoke repetition; not release qualification.",
+    }
+    (campaign / "summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print_comparison(baseline_eval, candidate_eval, score_payload)
+    print(f"\nArtifacts: {campaign}")
+    if outcome == "PASS":
+        print("Result: PASS (single live smoke; release qualification remains unassessed)")
+        return 0
+    if outcome == "INVALID":
+        print("Result: INVALID (ambient capabilities were not fully isolated; no scorer claim)")
+        return 1
+    print("Result: FAIL (valid isolated campaign; inspect summary.json and artifacts)")
+    return 1
+''',
+    "main",
+)
+
+HARNESS.write_text(text, encoding="utf-8", newline="\n")
+
+TESTS.write_text(
+    '''from __future__ import annotations
+
+import importlib.util
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location(
+    "run_codex_live_smoke",
+    ROOT / "scripts/run_codex_live_smoke.py",
+)
+module = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = module
+assert SPEC.loader
+SPEC.loader.exec_module(module)
+
+
+class CodexLiveSmokeTests(unittest.TestCase):
+    def test_version_parser_and_minimum_shape(self) -> None:
+        self.assertEqual(module.parse_version("codex-cli 0.147.0"), (0, 147, 0))
+        with self.assertRaises(module.HarnessError):
+            module.parse_version("Codex unknown")
+
+    def test_fixture_starts_failing_and_passes_after_supported_fix(self) -> None:
+        node = shutil.which("node") or shutil.which("node.exe")
+        if not node:
+            self.skipTest("Node.js is unavailable")
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp) / "seed"
+            module.create_fixture(seed)
+            before = module.run_tests(seed, node_executable=node)
+            self.assertEqual(before.returncode, 1)
+            before_text = before.stdout + before.stderr
+            self.assertIn(module.TEST_START_MARKER, before_text)
+            self.assertIn(module.TEST_FAIL_MARKER, before_text)
+
+            source = (seed / "retry_after.mjs").read_text(encoding="utf-8")
+            source = source.replace("Number(candidate) / 1000", "Number(candidate)")
+            (seed / "retry_after.mjs").write_text(source, encoding="utf-8", newline="\n")
+
+            after = module.run_tests(seed, node_executable=node)
+            self.assertEqual(after.returncode, 0)
+            after_text = after.stdout + after.stderr
+            self.assertIn(module.TEST_PASS_MARKER, after_text)
+            self.assertEqual(module.changed_paths(seed), ["retry_after.mjs"])
+
+    def test_skill_selection_requires_namespaced_enabled_installed_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin_root = Path(tmp) / "plugin"
+            skill_path = plugin_root / "skills" / "systematic-debugging" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True)
+            skill_path.write_text("# Systematic Debugging\n", encoding="utf-8")
+
+            skills = [
+                {
+                    "name": module.SKILL_QUALIFIED_NAME,
+                    "enabled": True,
+                    "path": str(skill_path),
+                }
+            ]
+            self.assertEqual(
+                module.select_skill(skills, installed_plugin_root=plugin_root),
+                (module.SKILL_QUALIFIED_NAME, str(skill_path)),
+            )
+
+            skills[0]["name"] = module.SKILL_BARE_NAME
+            with self.assertRaises(module.HarnessError):
+                module.select_skill(skills, installed_plugin_root=plugin_root)
+
+    def test_turn_parser_extracts_commands_changes_messages_and_usage(self) -> None:
+        events = [
+            {
+                "method": "item/completed",
+                "params": {
+                    "item": {
+                        "type": "commandExecution",
+                        "command": "node smoke-test.mjs",
+                        "exitCode": 1,
+                        "aggregatedOutput": (
+                            module.TEST_START_MARKER + "\n" + module.TEST_FAIL_MARKER
+                        ),
+                    }
+                },
+            },
+            {
+                "method": "item/completed",
+                "params": {"item": {"type": "fileChange"}},
+            },
+            {
+                "method": "thread/tokenUsage/updated",
+                "params": {
+                    "tokenUsage": {
+                        "total": {
+                            "totalTokens": 1234,
+                            "inputTokens": 1000,
+                            "cachedInputTokens": 750,
+                            "outputTokens": 234,
+                            "reasoningOutputTokens": 50,
+                        }
+                    }
+                },
+            },
+            {
+                "method": "item/completed",
+                "params": {
+                    "item": {
+                        "type": "agentMessage",
+                        "text": "Düzeltme tamamlandı.",
+                    }
+                },
+            },
+        ]
+        turn = module.parse_live_turn(
+            variant="candidate",
+            thread_result={
+                "thread": {"id": "thread-1"},
+                "model": "gpt-test",
+                "modelProvider": "openai",
+                "serviceTier": None,
+            },
+            turn_id="turn-1",
+            events=events,
+            duration_ms=100,
+            stderr="",
+            skill=(module.SKILL_QUALIFIED_NAME, "C:/plugin/SKILL.md"),
+        )
+        self.assertEqual(turn.thread_id, "thread-1")
+        self.assertTrue(module.test_command_state(turn.commands[0])["failed"])
+        self.assertEqual(turn.file_change_indexes, [1])
+        self.assertEqual(turn.final_message, "Düzeltme tamamlandı.")
+        self.assertEqual(module.usage_total_tokens(turn.usage), 1234)
+        self.assertEqual(module.usage_breakdown(turn.usage)["uncached_input_tokens"], 250)
+
+    def test_test_markers_prevent_shell_chain_false_positive(self) -> None:
+        failed_but_shell_zero = module.CommandEvidence(
+            command="node smoke-test.mjs; git diff --check",
+            exit_code=0,
+            output=module.TEST_START_MARKER + "\n" + module.TEST_FAIL_MARKER,
+            event_index=1,
+        )
+        self.assertTrue(module.test_command_state(failed_but_shell_zero)["failed"])
+        self.assertFalse(module.test_command_state(failed_but_shell_zero)["passed"])
+
+        command_not_found = module.CommandEvidence(
+            command="node smoke-test.mjs",
+            exit_code=1,
+            output="node: command not found",
+            event_index=2,
+        )
+        self.assertFalse(module.test_command_state(command_not_found)["failed"])
+        self.assertFalse(module.test_command_state(command_not_found)["started"])
+
+    def test_session_config_disables_ambient_capabilities(self) -> None:
+        config = module.build_session_config(
+            disabled_skill_paths=["C:/skills/one/SKILL.md"],
+            mcp_server_names=["memory", "node_repl"],
+        )
+        self.assertEqual(
+            config["features"],
+            {
+                "plugins": False,
+                "apps": False,
+                "memories": False,
+                "js_repl": False,
+            },
+        )
+        self.assertFalse(config["skills"]["config"][0]["enabled"])
+        self.assertFalse(config["mcp_servers"]["memory"]["enabled"])
+
+    def test_environment_findings_detect_mcp_and_foreign_skill_reads(self) -> None:
+        turn = module.LiveTurn(
+            variant="baseline",
+            thread_id="thread",
+            turn_id="turn",
+            model="model",
+            model_provider="openai",
+            service_tier=None,
+            final_message="done",
+            events=[
+                {
+                    "method": "mcpServer/startupStatus/updated",
+                    "params": {"name": "memory", "status": "ready"},
+                }
+            ],
+            commands=[
+                module.CommandEvidence(
+                    command="Get-Content C:/skills/other/SKILL.md",
+                    exit_code=0,
+                    output="",
+                    event_index=1,
+                )
+            ],
+            file_change_indexes=[],
+            usage={},
+            duration_ms=1,
+            stderr="",
+        )
+        findings = module.runtime_environment_findings(
+            turn=turn,
+            disabled_skill_paths=["C:/skills/other/SKILL.md"],
+            allowed_skill_path=None,
+        )
+        self.assertTrue(any("MCP servers became ready" in item for item in findings))
+        self.assertTrue(any("disabled skill path" in item for item in findings))
+
+
+if __name__ == "__main__":
+    unittest.main()
+''',
+    encoding="utf-8",
+    newline="\n",
+)
+
+DOCS.write_text(
+    '''# Codex live smoke
+
+This document is for repository maintainers evaluating behavior. It is **not** an end-user installation guide.
+
+## End users
+
+A normal Codex user installs the marketplace and the small core package:
+
+```bash
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
+codex plugin add engineering-foundation-core@egoist-engineering-foundation
+```
+
+Then the user starts a new Codex thread. They do not run Python tests, JSON-RPC probes, package hash checks, or the live smoke harness.
+
+## Maintainer smoke
+
+The live smoke answers a narrower question: on one authenticated Codex CLI run, does one explicitly selected core debugging skill complete a controlled task safely and with reviewable evidence, compared with an isolated baseline?
+
+Requirements:
+
+- Python 3.11 or newer;
+- Git;
+- Node.js;
+- Codex CLI 0.147.0 or newer;
+- an active `codex login` session;
+- no concurrent Codex process changing plugin configuration during the smoke.
+
+Run from a clean repository root:
+
+```bash
+python scripts/run_codex_live_smoke.py --confirm-live
+```
+
+Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository. The command deliberately requires `--confirm-live` because it runs two real model turns and consumes plan usage.
+
+## Validity controls
+
+The harness treats environment isolation as a hard precondition, not a decorative checkbox:
+
+- the fixture uses Node.js, which is already required by the npm Codex launcher;
+- the test runner prints explicit started, pass, and fail markers;
+- a shell command returning zero after a failed test cannot become false positive evidence;
+- every discovered user skill path is disabled through per-thread session config;
+- plugin, app, memory, and JavaScript REPL feature surfaces are disabled for both variants;
+- configured MCP servers are disabled for both variants;
+- the candidate receives only one structured explicit skill input;
+- any ready MCP server, foreign skill-file read, or Codex-memory read marks the campaign `INVALID` and skips scoring;
+- `summary.json` is written for PASS, FAIL, INVALID, and harness-error outcomes.
+
+The baseline and candidate still use the same authenticated Codex home. Authentication files are never copied, parsed, printed, or moved.
+
+## What the harness does
+
+1. Creates one deterministic failing Node.js fixture and clones it twice.
+2. Records the current Codex marketplace, core-plugin, and `config.toml` state.
+3. Discovers ambient skills and MCP names for explicit per-thread disabling.
+4. Runs an isolated baseline with plugins, apps, memories, configured MCP servers, and discovered user skills disabled.
+5. Installs the local core package temporarily.
+6. Resolves `engineering-foundation-core:systematic-debugging`, then runs the candidate with the same isolation config plus that one structured skill input.
+7. Uses the same prompt, model, provider, service tier, reasoning effort, and fixture.
+8. Checks marker-backed reproduction, marker-backed post-edit verification, allowed diff, unchanged Git commit, activation, ambient-capability isolation, tool calls, agent count, duration, and detailed token usage.
+9. Writes traces and artifacts below `.eval-runs/codex-live-smoke/`.
+10. Runs `scripts/score_eval_runs.py` only when the environment-isolation gate passes.
+11. Restores the original plugin, marketplace, and `config.toml` state even when the run fails.
+
+## Artifacts
+
+Each campaign contains:
+
+```text
+.eval-runs/codex-live-smoke/<campaign>/
+├── baseline/
+│   ├── artifact.json
+│   ├── diff.patch
+│   ├── final-message.md
+│   ├── stderr.txt
+│   ├── tests-after.txt
+│   ├── tests-before.txt
+│   └── trace.jsonl
+├── candidate/
+│   └── ...
+├── preflight/
+├── runs.jsonl
+├── score.json
+├── summary.json
+├── seed/
+└── workspaces/
+```
+
+`trace.jsonl` records the app-server messages sent and received. Review it before sharing because model traces and repository content can contain sensitive information in real campaigns. The bundled fixture itself contains no secrets.
+
+## Result meanings
+
+- `PASS`: one isolated candidate repetition cleared scorer gates.
+- `FAIL`: the environment was valid, but behavior or regression gates failed.
+- `INVALID`: ambient skills, MCPs, memory, or other capabilities contaminated the comparison; the scorer was not run.
+- `HARNESS_ERROR`: the harness or runtime failed before a trustworthy comparison completed.
+
+A passing smoke does **not** mean every model or client is qualified. Full qualification still requires repeated baseline, previous-release, and candidate runs across the matrix in [`qualification.md`](qualification.md). One green smoke is evidence, not a coronation ceremony.
+''',
+    encoding="utf-8",
+    newline="\n",
+)
+
+changelog = CHANGELOG.read_text(encoding="utf-8")
+changelog = replace_once(
+    changelog,
+    "- Separated two-command end-user installation from maintainer-only deterministic and live validation.\n",
+    "- Separated two-command end-user installation from maintainer-only deterministic and live validation.\n"
+    "- Replaced the Python fixture with a marker-backed Node.js fixture so the agent and harness share an available runtime.\n"
+    "- Added per-thread isolation for plugins, apps, memories, MCP servers, and ambient user skills.\n"
+    "- Rejected shell-chain false positives and write `summary.json` for PASS, FAIL, INVALID, and harness errors.\n"
+    "- Added cached, uncached, output, reasoning, duration, and environment-validity metrics.\n",
+    "changelog live smoke bullets",
+)
+CHANGELOG.write_text(changelog, encoding="utf-8", newline="\n")
+
+print("live smoke v2 patch: PASS")
