@@ -19,12 +19,13 @@ path.write_text(text, encoding="utf-8", newline="\n")
 runpy.run_path(str(path), run_name="__main__")
 
 
-def escape_newlines_in_short_strings(source: str) -> str:
+def escape_newlines_in_short_strings(source: str, *, label: str) -> str:
     """Repair generator-interpreted newlines inside ordinary Python strings."""
 
     output: list[str] = []
     state = "code"
     quote = ""
+    state_start = 0
     index = 0
 
     while index < len(source):
@@ -34,15 +35,18 @@ def escape_newlines_in_short_strings(source: str) -> str:
                 output.append(token)
                 quote = token[0]
                 state = "triple"
+                state_start = index
                 index += 3
                 continue
             char = source[index]
             output.append(char)
             if char == "#":
                 state = "comment"
+                state_start = index
             elif char in {"'", '"'}:
                 quote = char
                 state = "short"
+                state_start = index
             index += 1
             continue
 
@@ -91,7 +95,12 @@ def escape_newlines_in_short_strings(source: str) -> str:
         index += 1
 
     if state not in {"code", "comment"}:
-        raise SystemExit(f"generated Python still contains an unterminated {state} string")
+        line = source.count("\n", 0, state_start) + 1
+        context = source[max(0, state_start - 120) : min(len(source), state_start + 240)]
+        raise SystemExit(
+            f"{label}: generated Python contains an unterminated {state} string "
+            f"starting at line {line}: {context!r}"
+        )
     return "".join(output)
 
 
@@ -102,7 +111,7 @@ for target in (
 ):
     generated = target.read_text(encoding="utf-8")
     target.write_text(
-        escape_newlines_in_short_strings(generated),
+        escape_newlines_in_short_strings(generated, label=str(target)),
         encoding="utf-8",
         newline="\n",
     )
