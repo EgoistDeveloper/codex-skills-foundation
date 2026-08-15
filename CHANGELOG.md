@@ -26,6 +26,7 @@
 - Added a checkpointed, fail-fast core repeatability runner that alternates positive and negative cases, enforces stable model/client/subject identity, resumes interrupted campaigns under the same HEAD, and scores combined minimum-repetition evidence.
 - Deferred positive isolation evidence until the base campaign layout exists, preventing the wrapper from pre-creating and then colliding with its `preflight` directory.
 - Recorded a complete three-repetition core campaign: all six positive/negative child campaigns and twelve authenticated turns passed, negative candidates retained zero core reads and zero agents, and the parent restored exact marketplace, plugin, and config state.
+- Added a bounded read-only delegation smoke that requires one to three direct children, inspects each child for nested fan-out, forbids all fixture writes, and gates the parent report on exact source-backed risk coverage.
 
 ## 0.2.1 - 2026-08-15
 
