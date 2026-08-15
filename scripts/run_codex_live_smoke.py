@@ -53,7 +53,6 @@ Kısıtlar:
 - Runtime aramak, kurmak veya indirmek için sistem klasörlerini tarama.
 - Tamamlandı demeden önce node smoke-test.mjs komutunu çalıştır.
 """
-r
 
 
 class HarnessError(RuntimeError):
@@ -67,7 +66,6 @@ class CodexLaunchers:
     node_executable: str
     version_text: str
     version: tuple[int, int, int]
-r
 
 @dataclass
 class CommandEvidence:
@@ -211,7 +209,6 @@ def resolve_codex_launchers() -> CodexLaunchers:
         version_text=version_text,
         version=version,
     )
-r
 
 def load_catalog() -> str:
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
@@ -694,7 +691,6 @@ class AppServer:
         if self.trace_handle is not None:
             self.trace_handle.close()
         return False
-r
 
 def fixture_source() -> dict[str, str]:
     return {
@@ -766,7 +762,6 @@ def run_tests(
 def write_process_output(path: Path, result: subprocess.CompletedProcess[str]) -> None:
     output = "\n".join(part for part in (result.stdout, result.stderr) if part)
     path.write_text(output, encoding="utf-8", newline="\n")
-r
 
 def select_skill(
     skills: list[dict[str, Any]],
@@ -949,21 +944,25 @@ def runtime_environment_findings(
         findings.append("MCP servers became ready: " + ", ".join(sorted(ready_mcp)))
 
     allowed = normalized_path(allowed_skill_path) if allowed_skill_path else None
-    forbidden = {
-        normalized_path(path)
-        for path in disabled_skill_paths
-        if allowed is None or normalized_path(path) != allowed
-    }
+    forbidden: list[tuple[str, set[str]]] = []
+    for raw_path in disabled_skill_paths:
+        normalized = normalized_path(raw_path)
+        if allowed is not None and normalized == allowed:
+            continue
+        variants = {
+            raw_path.replace("\\", "/").lower(),
+            normalized.replace("\\", "/").lower(),
+        }
+        forbidden.append((raw_path, variants))
+
     for command in turn.commands:
         normalized_command = command.command.replace("\\", "/").lower()
         if "/.codex/memories/" in normalized_command or "\\.codex\\memories\\" in command.command.lower():
             findings.append("agent read Codex memory state")
-        for path in forbidden:
-            path_text = path.replace("\\", "/").lower()
-            if path_text in normalized_command:
-                findings.append(f"agent read disabled skill path: {path}")
+        for raw_path, variants in forbidden:
+            if any(path_text in normalized_command for path_text in variants):
+                findings.append(f"agent read disabled skill path: {raw_path}")
     return sorted(set(findings))
-r
 
 def changed_paths(workspace: Path) -> list[str]:
     raw = git(["status", "--porcelain=v1", "-z"], cwd=workspace)
@@ -1007,7 +1006,6 @@ def usage_breakdown(usage: dict[str, Any]) -> dict[str, int]:
 
 def usage_total_tokens(usage: dict[str, Any]) -> int:
     return usage_breakdown(usage)["total_tokens"]
-r
 
 def evaluate_run(
     *,
@@ -1201,7 +1199,6 @@ def evaluate_run(
         "artifact_path": f"{turn.variant}/artifact.json",
     }
     return Evaluation(row=row, artifact=artifact)
-r
 
 def run_live_variant(
     *,
@@ -1253,7 +1250,6 @@ def run_live_variant(
             skill=explicit_skill,
         )
         return turn, codex_home
-r
 
 def campaign_directory(base: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1284,7 +1280,6 @@ def print_comparison(
         f"  scorer   : status={score.get('status')} "
         f"qualification={score.get('release_qualification')}"
     )
-r
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -1616,7 +1611,6 @@ def main() -> int:
         return 1
     print("Result: FAIL (valid isolated campaign; inspect summary.json and artifacts)")
     return 1
-r
 
 if __name__ == "__main__":
     try:
