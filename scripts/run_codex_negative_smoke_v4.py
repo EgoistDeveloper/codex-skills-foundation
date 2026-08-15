@@ -4,7 +4,7 @@
 Codex can contribute MCP servers after ordinary config and plugin inventory have
 already been resolved. This launcher performs a model-free ephemeral thread
 probe, records the effective runtime MCP names, converts those names into valid
-transport-complete disabled config entries, verifies the name veto without a
+transport-complete disabled startup entries, verifies the name veto without a
 model turn, and then delegates to the established negative-trigger harness.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import run_codex_live_smoke as base
 import run_codex_negative_smoke as negative
 
-CASE_REVISION = 5
+CASE_REVISION = 6
 RUNTIME_PROBE_TIMEOUT_SECONDS = 45
 RUNTIME_PROBE_POLL_SECONDS = 0.25
 RUNTIME_PROBE_STABLE_POLLS = 2
@@ -168,6 +168,35 @@ def transport_safe_builder(
             *command[-2:],
         )
         return tuple(amended_command), [*overrides, veto_override]
+
+    return build
+
+
+def startup_only_session_config_builder(
+    original_builder: Callable[..., dict[str, Any]],
+) -> Callable[..., dict[str, Any]]:
+    """Keep MCP rows exclusively in the validated app-server startup layer.
+
+    Thread config is a separate configuration layer. Supplying only
+    ``enabled=false`` there replaces the transport-complete startup row and is
+    rejected as ``invalid transport``. The startup layer already owns the full
+    name veto, so thread config must omit top-level MCP rows entirely.
+    """
+
+    def build(
+        *,
+        disabled_skill_paths: list[str],
+        mcp_server_names: list[str],
+    ) -> dict[str, Any]:
+        config = original_builder(
+            disabled_skill_paths=disabled_skill_paths,
+            mcp_server_names=[],
+        )
+        if "mcp_servers" in config:
+            raise base.HarnessError(
+                "startup-only session config unexpectedly emitted MCP rows."
+            )
+        return config
 
     return build
 
@@ -326,6 +355,10 @@ def verify_runtime_mcp_veto(
                 "use_memories": False,
                 "dedicated_tools": False,
             }
+            if "mcp_servers" in session_config:
+                raise base.HarnessError(
+                    "runtime MCP veto verification received thread-layer MCP rows."
+                )
             thread_result = server.start_thread(
                 cwd=cwd,
                 model=None,
@@ -375,13 +408,14 @@ def write_runtime_probe_artifact(
     path = campaign / "preflight" / "runtime-mcp-inventory.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "case_revision": CASE_REVISION,
         "codex_home": str(codex_home),
         "model_calls": 0,
         "direct_config_mcp_names": direct_config_names,
         "runtime_mcp_inventory": runtime_inventory,
         "disabled_mcp_server_names": disabled_names,
+        "thread_mcp_overrides_omitted": True,
         "veto_validation_inventory": veto_inventory,
         "veto_startup_overrides": veto_overrides,
         "veto_validation_pass": True,
@@ -436,6 +470,7 @@ def runtime_aware_configured_mcp_names(
     )
     print("  name-veto         : " + ", ".join(disabled_names))
     print("  transport-stubs   : VALID")
+    print("  thread-mcp-layer  : OMITTED")
     print("  veto-validation   : PASS")
     if artifact is not None:
         print(f"  artifact          : {artifact}")
@@ -448,8 +483,12 @@ def main() -> int:
     original_reader = base.configured_mcp_server_names
     original_campaign_directory = base.campaign_directory
     original_builder = negative.build_isolated_app_server_command
+    original_session_builder = base.build_session_config
     original_case_revision = negative.CASE_REVISION
     safe_builder = transport_safe_builder(original_builder)
+    safe_session_builder = startup_only_session_config_builder(
+        original_session_builder
+    )
     captured_campaign: dict[str, Path] = {}
 
     def capture_campaign(output_root: Path) -> Path:
@@ -469,12 +508,14 @@ def main() -> int:
     negative.CASE_REVISION = CASE_REVISION
     base.campaign_directory = capture_campaign
     base.configured_mcp_server_names = runtime_aware_reader
+    base.build_session_config = safe_session_builder
     negative.build_isolated_app_server_command = safe_builder
     try:
         return negative.main()
     finally:
         negative.CASE_REVISION = original_case_revision
         negative.build_isolated_app_server_command = original_builder
+        base.build_session_config = original_session_builder
         base.campaign_directory = original_campaign_directory
         base.configured_mcp_server_names = original_reader
 
