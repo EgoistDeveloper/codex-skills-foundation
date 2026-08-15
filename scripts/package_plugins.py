@@ -26,7 +26,7 @@ def sha256(path: Path) -> str:
 
 def safe_files(plugin_root: Path) -> list[Path]:
     files: list[Path] = []
-    for path in sorted(plugin_root.rglob("*")):
+    for path in plugin_root.rglob("*"):
         if path.is_symlink():
             raise ValueError(f"symlinks are not allowed in release packages: {path}")
         if path.is_file():
@@ -34,7 +34,9 @@ def safe_files(plugin_root: Path) -> list[Path]:
             if relative.is_absolute() or ".." in relative.parts:
                 raise ValueError(f"unsafe release path: {relative}")
             files.append(path)
-    return files
+    # Path ordering follows host path semantics, including case-folding on Windows.
+    # Sort canonical POSIX archive names instead so entry order is identical everywhere.
+    return sorted(files, key=lambda path: path.relative_to(plugin_root).as_posix())
 
 
 def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
@@ -86,9 +88,8 @@ def main() -> int:
     try:
         for plugin in catalog["plugins"]:
             built.append(build_archive(plugin, output))
-        checksum_path.write_text(
-            "".join(f"{digest}  {path.name}\n" for path, digest in built),
-            encoding="utf-8",
+        checksum_path.write_bytes(
+            "".join(f"{digest}  {path.name}\n" for path, digest in built).encode("utf-8")
         )
         if args.check:
             first = {path.name: path.read_bytes() for path, _ in built}

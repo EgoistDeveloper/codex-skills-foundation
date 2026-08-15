@@ -26,6 +26,7 @@ class PackagingTests(unittest.TestCase):
                 self.assertEqual(first_digest, second_digest)
                 with zipfile.ZipFile(archive) as zf:
                     names = zf.namelist()
+                    self.assertEqual(names, sorted(names))
                     self.assertIn("plugin.json", names)
                     self.assertIn(".codex-plugin/plugin.json", names)
                     self.assertIn(".claude-plugin/plugin.json", names)
