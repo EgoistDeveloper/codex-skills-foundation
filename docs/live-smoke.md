@@ -108,6 +108,27 @@ python scripts/run_codex_core_repeatability.py \
 
 A finalized FAIL, INVALID, or harness-error campaign is not resumable. Start a new campaign after repairing the cause so results from different harness identities are not mixed.
 
+## Bounded read-only delegation smoke
+
+The repeatability campaign proves that a tiny edit does not trigger orchestration. This complementary positive case asks whether Codex delegates when the work is genuinely separable and then keeps that delegation bounded:
+
+```bash
+python scripts/run_codex_bounded_delegation_smoke.py --confirm-live
+```
+
+The fixture contains three independent audit documents. The same read-only task is given to a plugin-disabled baseline and to a candidate with `engineering-foundation-core:bounded-orchestration` explicitly selected. The candidate passes only when:
+
+- one through three direct child agents are spawned;
+- every child receives a nonempty bounded assignment;
+- each direct child belongs to the parent thread;
+- child threads are inspected and none spawns another child;
+- no file or Git commit changes in the read-only fixture;
+- the parent final answer integrates all three exact Risk-ID values and source paths;
+- no foreign skill, memory, app, plugin, or MCP contamination is observed;
+- the combined live scorer passes and the original Codex state is restored exactly.
+
+The parent thread uses a read-only sandbox. The harness also reads each spawned child thread before app-server shutdown so a nested delegation attempt cannot quietly disappear behind a cheerful final report. Apparently even delegation depth needs a customs checkpoint, but that is preferable to recursive agents breeding in the walls.
+
 ## Validity controls
 
 The harnesses treat environment isolation as a hard precondition:
@@ -145,6 +166,12 @@ Repeatability campaigns:
 
 ```text
 .eval-runs/codex-core-repeatability/<campaign>/
+```
+
+Bounded-delegation campaigns:
+
+```text
+.eval-runs/codex-bounded-delegation-smoke/<campaign>/
 ```
 
 Review `trace.jsonl` before sharing it because model traces and repository content can contain local paths or environment metadata. The bundled fixtures themselves contain no secrets.
