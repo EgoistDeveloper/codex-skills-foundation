@@ -1,4 +1,4 @@
-.PHONY: bootstrap validate render test package live-smoke live-negative-smoke live-repeatability
+.PHONY: bootstrap validate render test package live-smoke live-negative-smoke live-repeatability live-bounded-delegation
 
 bootstrap:
 	python scripts/bootstrap.py
@@ -23,3 +23,6 @@ live-negative-smoke:
 
 live-repeatability:
 	python scripts/run_codex_core_repeatability.py --confirm-live --repetitions 3
+
+live-bounded-delegation:
+	python scripts/run_codex_bounded_delegation_smoke.py --confirm-live
