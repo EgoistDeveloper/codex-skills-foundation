@@ -679,6 +679,7 @@ class AppServer:
 
 def fixture_source() -> dict[str, str]:
     return {
+        ".gitignore": "__pycache__/\n*.py[cod]\n",
         "retry_after.py": '''from __future__ import annotations
 
 from datetime import datetime, timezone
