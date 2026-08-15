@@ -14,7 +14,35 @@ Codex, ChatGPT, Codex Cloud, Claude Code ve Agent Skills / Agent Plugins uyumlu 
 
 Core; task contract, plan/milestone, sınırlı delegasyon, küçük ve doğru diff, sistematik debugging, güncel kaynak araştırması, review, doğrulama ve handoff davranışlarını içerir. Diğer paketler yalnız gerektiğinde kurulur. Böylece backend düzeltmesinde tasarım manifestosu, normal projede Cloud setup talimatı taşınmaz. İnsanlar her şeyi tek çekmeceye koymayı sever; agent context'i bu geleneğe katılmak zorunda değil.
 
-## Yerel doğrulama
+## Codex son kullanıcı kurulumu
+
+Normal bir Codex kullanıcısının yapacağı işlem şudur:
+
+```text
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
+codex plugin add engineering-foundation-core@egoist-engineering-foundation
+```
+
+Laravel, design, cloud ve authoring paketlerini yalnız ihtiyaç olduğunda aynı marketplace adıyla ekleyin. Yeni skill metadata'sının yüklenmesi için yeni bir Codex thread'i başlatın.
+
+Son kullanıcı Python testlerini, paket hash kontrollerini, JSON-RPC discovery problarını veya canlı eval harness'ini çalıştırmaz. Bunlar paketi geliştiren ve yayımlayan maintainer'ın kalite kontrolüdür. Araba alan kişiye motor bloğunu ölçtürmek gibi bir kurulum süreci tasarlamıyoruz.
+
+## Claude Code son kullanıcı kurulumu
+
+```text
+claude plugin marketplace add EgoistDeveloper/codex-skills-foundation
+claude plugin install engineering-foundation-core@egoist-engineering-foundation
+```
+
+İsteğe bağlı paketler aynı marketplace suffix'iyle kurulur. Yerel plugin geliştirmesinde bir dizin doğrudan yüklenebilir:
+
+```text
+claude --plugin-dir ./plugins/engineering-foundation-core
+```
+
+## Maintainer doğrulaması
+
+Repository'yi geliştiren kişi Python 3.11+ ve geliştirme bağımlılıklarıyla deterministik doğrulamayı çalıştırır:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
@@ -32,26 +60,18 @@ Bootstrap şunları birlikte çalıştırır:
 - sentetik eval scorer self-test;
 - deterministik plugin ZIP paketleri ve SHA-256.
 
-## Codex marketplace
+Bu aşama model çağırmaz ve skill'lerin davranışsal olarak yararlı olduğunu tek başına kanıtlamaz.
 
-```text
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
-codex plugin add engineering-foundation-core@egoist-engineering-foundation
+Gerçek Codex davranışı için ayrı, tek komutluk smoke harness bulunur:
+
+```powershell
+python scripts/run_codex_live_smoke.py --confirm-live
 ```
 
-Laravel, design, cloud ve authoring paketlerini yalnız ihtiyaç olduğunda aynı marketplace adıyla ekleyin. Yeni skill metadata'sının yüklenmesi için yeni bir Codex thread'i başlatın.
-
-## Claude Code marketplace
-
-```text
-claude plugin marketplace add EgoistDeveloper/codex-skills-foundation
-claude plugin install engineering-foundation-core@egoist-engineering-foundation
-```
-
-Yerel geliştirmede her plugin dizini `claude plugin validate <plugin-dir> --strict` ile doğrulanır.
+Harness bir pluginsiz baseline ve açıkça seçilmiş core-skill candidate koşusu yapar, `.eval-runs/` altında incelenebilir kanıt üretir ve başlangıçtaki Codex plugin/config durumunu geri yükler. Ayrıntılar: [`docs/live-smoke.md`](docs/live-smoke.md).
 
 ## Doğruluk sınırı
 
-Statik test, manifest doğrulaması ve kurulum smoke testi; olasılıksal modelin her gerçek görevde kusursuz davranacağını kanıtlamaz. Bu repo, yanlış activation, gereksiz subagent, kapsam kayması ve sahte completion riskini ölçülebilir kapılarla azaltır. Canlı Codex/Claude qualification yalnız gerçek, review edilebilir run artifact'larıyla ileri sürülebilir.
+Statik test, manifest doğrulaması ve kurulum smoke testi; olasılıksal modelin her gerçek görevde kusursuz davranacağını kanıtlamaz. Tek canlı smoke koşusu da tam qualification değildir. Bu repo, yanlış activation, gereksiz subagent, kapsam kayması ve sahte completion riskini ölçülebilir kapılarla azaltır. Canlı Codex/Claude qualification yalnız tekrarlı ve review edilebilir run artifact'larıyla ileri sürülebilir.
 
-Ayrıntılar: [`docs/architecture.md`](docs/architecture.md), [`docs/evals.md`](docs/evals.md), [`docs/qualification.md`](docs/qualification.md).
+Ayrıntılar: [`docs/architecture.md`](docs/architecture.md), [`docs/evals.md`](docs/evals.md), [`docs/live-smoke.md`](docs/live-smoke.md), [`docs/qualification.md`](docs/qualification.md).
