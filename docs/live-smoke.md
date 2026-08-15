@@ -25,11 +25,13 @@ Requirements:
 - an active `codex login` session;
 - no concurrent Codex process changing plugin configuration during the smoke.
 
-Run from the repository root:
+Run from a clean repository root:
 
 ```bash
 python scripts/run_codex_live_smoke.py --confirm-live
 ```
+
+Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository.
 
 The command deliberately requires `--confirm-live` because it runs two real model turns and consumes plan usage.
 
