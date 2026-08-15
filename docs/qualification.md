@@ -19,12 +19,17 @@ Actual run IDs and results for the released revision belong in `docs/release-evi
 | Surface | Install | Positive trigger | Negative trigger | Behavior | Safety | Evidence | Status |
 |---|---:|---:|---:|---:|---:|---:|---|
 | ChatGPT/Codex desktop | required | required | required | required | required | required | NOT_RUN |
-| Codex CLI authenticated session | PASS | PASS (1 explicit case) | NOT_RUN | PASS (1 case) | PASS | PASS | PARTIAL |
+| Codex CLI authenticated session | PASS | PASS (1 explicit case) | PASS (1 tiny-edit case) | PASS (2 cases) | PASS | PASS | PARTIAL |
 | Codex Cloud | required | required | required | required | required | required | NOT_RUN |
 | Claude Code authenticated session | required | required | required | required | required | required | NOT_RUN |
-| Agent Plugins reference client | required | required | required | selected | required | required | NOT_RUN |
+| Agent Plugins reference client | required | required | required | required | required | required | NOT_RUN |
 
-The Codex CLI row records one isolated authenticated `systematic-debugging` smoke for core `0.2.2`. Its scorer status was `PASS`, but coverage remained `COVERAGE_NOT_ASSESSED`. See [`live-evidence/codex-cli-core-0.2.2-2026-08-15.md`](live-evidence/codex-cli-core-0.2.2-2026-08-15.md). A single explicit-positive case does not satisfy negative-trigger, implicit-activation, repetition, or full-surface requirements.
+The Codex CLI row records two isolated authenticated campaigns for core `0.2.2`:
+
+- one explicit-positive `systematic-debugging` case, documented in [`live-evidence/codex-cli-core-0.2.2-2026-08-15.md`](live-evidence/codex-cli-core-0.2.2-2026-08-15.md);
+- one natural-exposure negative-trigger case in which a tiny edit did not read planning/orchestration skills or spawn agents, documented in [`live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md`](live-evidence/codex-cli-core-0.2.2-negative-trigger-2026-08-16.md).
+
+Both scorers reported `PASS` with `COVERAGE_NOT_ASSESSED`. These two single repetitions do not satisfy repeated-comparison, broad case-matrix, or full-surface requirements. A pair of green samples is evidence, not a constitutional amendment.
 
 The repository may publish a statically and provider-package-validated release while this matrix remains incomplete, but it must not describe that release as fully live-model-qualified. Precision is less glamorous than a giant green badge, yet strangely more useful.
 

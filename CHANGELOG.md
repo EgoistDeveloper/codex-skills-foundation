@@ -21,6 +21,7 @@
 - Added an app-server effective-plugin inventory pass so API-curated plugins omitted by the CLI installed list, plus their plugin-provided MCP servers, are disabled before measured negative-smoke execution.
 - Added a model-free runtime MCP inventory pass for compatibility and extension registrations, then converted the discovered names into transport-complete disabled rows and required a second model-free veto validation before live turns may start.
 - Kept top-level MCP vetoes exclusively in the app-server startup layer so partial thread/session rows cannot replace valid transports during `thread/start`.
+- Recorded the first valid isolated Codex CLI negative-trigger campaign: the naturally exposed core plugin completed the tiny edit with all gates passing, zero core skill reads, and zero spawned agents.
 
 ## 0.2.1 - 2026-08-15
 
