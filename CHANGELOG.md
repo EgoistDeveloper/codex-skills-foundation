@@ -22,13 +22,15 @@
 - Added a model-free runtime MCP inventory pass for compatibility and extension registrations, then converted the discovered names into transport-complete disabled rows and required a second model-free veto validation before live turns may start.
 - Kept top-level MCP vetoes exclusively in the app-server startup layer so partial thread/session rows cannot replace valid transports during `thread/start`.
 - Recorded the first valid isolated Codex CLI negative-trigger campaign: the naturally exposed core plugin completed the tiny edit with all gates passing, zero core skill reads, and zero spawned agents.
+- Applied the validated runtime MCP and foreign-plugin isolation policy to the explicit-positive debugging smoke.
+- Added a checkpointed, fail-fast core repeatability runner that alternates positive and negative cases, enforces stable model/client/subject identity, resumes interrupted campaigns under the same HEAD, and scores combined minimum-repetition evidence.
 
 ## 0.2.1 - 2026-08-15
 
 ### Cross-platform correctness
 
 - Excluded local virtual environments and dependency directories from repository-wide link, secret, and placeholder scans.
-- Added `.venv`, `venv`, `node_modules`, and common tool caches to `.gitignore`.
+- Added `.venv`, `venv`, `node_modules`, and common local tool caches to `.gitignore`.
 - Replaced operating-system-dependent executable checks with fixed Unix `0644` ZIP metadata.
 - Canonicalized ZIP entry order by POSIX archive path, stored entries without zlib-dependent compression, and wrote checksum manifests with explicit LF bytes.
 - Added regression tests for local dependency exclusions and cross-platform archive modes.
