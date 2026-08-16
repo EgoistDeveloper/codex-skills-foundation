@@ -9,6 +9,7 @@
 - Promoted `engineering-foundation-core` to `0.3.0-beta.1`; optional packages remain at `0.2.1` because they do not yet have equivalent authenticated live-behavior coverage.
 - Added pinned public-beta installation, update, removal, scope, and limitation documentation.
 - Added a zero-model isolated lifecycle harness that installs Core `0.2.2`, upgrades a loopback Git marketplace to the beta candidate, reinstalls Core, installs and discovers every package, removes every package and marketplace entry, and verifies clean disposable state.
+- Excluded ignored `.eval-runs` campaign artifacts from repository-wide link, secret, and placeholder scans so maintainer evidence does not poison later local bootstraps.
 
 ### Live behavior evaluation
 

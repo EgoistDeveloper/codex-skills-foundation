@@ -56,6 +56,7 @@ EXCLUDED_PATH_PARTS = {
     "venv",
     "node_modules",
     "dist",
+    ".eval-runs",
     "__pycache__",
     ".pytest_cache",
     ".mypy_cache",

@@ -37,6 +37,7 @@ class RepositoryValidatorTests(unittest.TestCase):
             "venv/lib/python/site-packages/example.py",
             "node_modules/example/index.js",
             ".tox/example/lib/site-packages/example.py",
+            ".eval-runs/codex-live-smoke/example/final-message.md",
         ):
             self.assertTrue(module.is_excluded_path(ROOT / relative))
         self.assertFalse(
