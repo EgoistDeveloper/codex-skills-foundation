@@ -5,9 +5,10 @@ Revision 3 correctly observed MultiAgentV2 child starts, but it created the
 parent as an ephemeral thread and then requested child history with
 `thread/read(includeTurns=true)`. Codex intentionally rejects that combination.
 Revision 4 starts each measured app-server with a unique process-scoped
-in-memory thread store, creates non-ephemeral threads inside that disposable
-store, proves history readability before either model turn, and then performs
-the established V1/V2 child inspection without writing normal Codex history.
+in-memory thread store plus a campaign-local state DB, creates non-ephemeral
+threads inside that disposable storage boundary, proves history readability
+before either model turn, and then performs the established V1/V2 child
+inspection without writing normal Codex history or agent-graph state.
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -32,6 +33,30 @@ _THREAD_STORE_TYPE = "in_memory"
 _REVISION3_EVALUATE_RUN = revision3.evaluate_run
 
 
+def command_with_startup_overrides(
+    command: tuple[str, ...],
+    overrides: Iterable[str],
+) -> tuple[str, ...]:
+    override_values = list(overrides)
+    command_parts = list(command)
+    try:
+        listen_index = command_parts.index("--listen")
+    except ValueError as error:
+        raise delegation.base.HarnessError(
+            "app-server command is missing the --listen boundary."
+        ) from error
+
+    inserted: list[str] = []
+    for override in override_values:
+        if not isinstance(override, str) or not override.strip():
+            raise delegation.base.HarnessError(
+                "app-server startup overrides must be nonempty strings."
+            )
+        inserted.extend(("-c", override))
+    command_parts[listen_index:listen_index] = inserted
+    return tuple(command_parts)
+
+
 def in_memory_thread_store_override(store_id: str) -> str:
     if not store_id or not store_id.strip():
         raise delegation.base.HarnessError("in-memory thread store id must not be empty.")
@@ -39,6 +64,13 @@ def in_memory_thread_store_override(store_id: str) -> str:
         "experimental_thread_store="
         f"{{ type = {json.dumps(_THREAD_STORE_TYPE)}, id = {json.dumps(store_id)} }}"
     )
+
+
+def sqlite_home_override(sqlite_home: Path) -> str:
+    resolved = sqlite_home.resolve()
+    if not resolved.is_absolute():
+        raise delegation.base.HarnessError("campaign sqlite_home must be absolute.")
+    return f"sqlite_home={json.dumps(str(resolved))}"
 
 
 def app_server_command_with_in_memory_store(
@@ -51,17 +83,7 @@ def app_server_command_with_in_memory_store(
         raise delegation.base.HarnessError(
             "app-server command already contains an experimental_thread_store override."
         )
-
-    command_parts = list(command)
-    try:
-        listen_index = command_parts.index("--listen")
-    except ValueError as error:
-        raise delegation.base.HarnessError(
-            "app-server command is missing the --listen boundary."
-        ) from error
-
-    command_parts[listen_index:listen_index] = ["-c", override]
-    return tuple(command_parts), override
+    return command_with_startup_overrides(command, [override]), override
 
 
 def run_read_only_variant(
@@ -80,9 +102,17 @@ def run_read_only_variant(
 ) -> tuple[delegation.base.LiveTurn, delegation.DelegationObservation, Path]:
     started = time.monotonic()
     store_id = f"bounded-delegation-{variant}-{uuid.uuid4()}"
+    state_db_home = (run_dir / "state-db").resolve()
+    state_db_home.mkdir(parents=True, exist_ok=False)
+
     isolated_command, store_override = app_server_command_with_in_memory_store(
         app_server_command,
         store_id=store_id,
+    )
+    state_db_override = sqlite_home_override(state_db_home)
+    isolated_command = command_with_startup_overrides(
+        isolated_command,
+        [state_db_override],
     )
 
     with delegation.base.AppServer(
@@ -156,6 +186,9 @@ def run_read_only_variant(
         observation.thread_store_mode = _THREAD_STORE_TYPE
         observation.thread_store_id = store_id
         observation.thread_store_startup_override = store_override
+        observation.state_db_home = str(state_db_home)
+        observation.state_db_startup_override = state_db_override
+        observation.state_db_isolated = True
         observation.parent_thread_ephemeral = False
         observation.parent_read_preflight_pass = True
         observation.child_history_readable = not observation.child_read_errors
@@ -192,6 +225,21 @@ def evaluate_run(**kwargs: Any) -> delegation.DelegationEvaluation:
         "thread_store_startup_override",
         None,
     )
+    result.artifact["state_db_home"] = getattr(
+        observation,
+        "state_db_home",
+        None,
+    )
+    result.artifact["state_db_startup_override"] = getattr(
+        observation,
+        "state_db_startup_override",
+        None,
+    )
+    result.artifact["state_db_isolated"] = getattr(
+        observation,
+        "state_db_isolated",
+        False,
+    )
     result.artifact["parent_thread_ephemeral"] = getattr(
         observation,
         "parent_thread_ephemeral",
@@ -209,10 +257,14 @@ def evaluate_run(**kwargs: Any) -> delegation.DelegationEvaluation:
     )
 
     startup_overrides = result.artifact.get("startup_config_overrides")
-    store_override = result.artifact["thread_store_startup_override"]
-    if isinstance(startup_overrides, list) and isinstance(store_override, str):
-        if store_override not in startup_overrides:
-            startup_overrides.append(store_override)
+    extra_overrides = (
+        result.artifact["thread_store_startup_override"],
+        result.artifact["state_db_startup_override"],
+    )
+    if isinstance(startup_overrides, list):
+        for override in extra_overrides:
+            if isinstance(override, str) and override not in startup_overrides:
+                startup_overrides.append(override)
 
     run_dir = kwargs["run_dir"]
     (run_dir / "artifact.json").write_text(
