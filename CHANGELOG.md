@@ -32,6 +32,7 @@
 - Replaced revision 3's incompatible ephemeral-thread inspection with a unique process-scoped in-memory thread store and campaign-local SQLite state: revision 4 proves turn-bearing reads before model use, keeps campaign threads and agent-graph metadata out of normal Codex storage, and performs complete child-history verification.
 - Corrected revision 4's child-history classifier after direct children repeated their own depth-one start provenance: revision 5 records self and mirrored direct activity without counting it as nested, while still failing closed on depth-two fan-out and malformed root activity.
 - Recorded the first scorer-valid positive bounded-delegation campaign: the candidate opened two direct MultiAgentV2 children, preserved readable bounded assignments, opened no nested child, changed no files, integrated every source-backed risk, and restored Codex state exactly.
+- Added a failed-evidence refusal smoke that requires an exact implementation edit, a fresh blocked verifier result, full acceptance coverage, and a non-COMPLETE durable evidence packet before the candidate can pass.
 
 ## 0.2.1 - 2026-08-15
 
