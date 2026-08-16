@@ -29,6 +29,7 @@
 - Added a bounded read-only delegation smoke that requires one to three direct children, inspects each child for nested fan-out, forbids all fixture writes, and gates the parent report on exact source-backed risk coverage.
 - Corrected the bounded-delegation positive contract after revision 1 permitted parent-only execution while its hidden gate required a child: revision 2 explicitly required native `spawn_agent` activation.
 - Corrected the revision 1/2 observer after Codex CLI 0.147.0 selected MultiAgentV2 for `gpt-5.6-sol`: revision 3 observes both legacy `collabAgentToolCall` and V2 `subAgentActivity`, reads every direct child thread, validates V2 `NEW_TASK` assignments, and never retroactively reclassifies historical results.
+- Replaced revision 3's incompatible ephemeral-thread inspection with a unique process-scoped in-memory thread store: revision 4 proves turn-bearing reads before model use, keeps campaign threads out of normal Codex history, and performs complete child-history verification.
 
 ## 0.2.1 - 2026-08-15
 
