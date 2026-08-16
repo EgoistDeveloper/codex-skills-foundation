@@ -31,6 +31,7 @@
 - Corrected the revision 1/2 observer after Codex CLI 0.147.0 selected MultiAgentV2 for `gpt-5.6-sol`: revision 3 observes both legacy `collabAgentToolCall` and V2 `subAgentActivity`, reads every direct child thread, validates V2 `NEW_TASK` assignments, and never retroactively reclassifies historical results.
 - Replaced revision 3's incompatible ephemeral-thread inspection with a unique process-scoped in-memory thread store and campaign-local SQLite state: revision 4 proves turn-bearing reads before model use, keeps campaign threads and agent-graph metadata out of normal Codex storage, and performs complete child-history verification.
 - Corrected revision 4's child-history classifier after direct children repeated their own depth-one start provenance: revision 5 records self and mirrored direct activity without counting it as nested, while still failing closed on depth-two fan-out and malformed root activity.
+- Recorded the first scorer-valid positive bounded-delegation campaign: the candidate opened two direct MultiAgentV2 children, preserved readable bounded assignments, opened no nested child, changed no files, integrated every source-backed risk, and restored Codex state exactly.
 
 ## 0.2.1 - 2026-08-15
 
