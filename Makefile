@@ -1,4 +1,4 @@
-.PHONY: bootstrap validate render test package live-smoke live-negative-smoke live-repeatability live-bounded-delegation live-evidence-refusal
+.PHONY: bootstrap validate render test package live-smoke live-negative-smoke live-repeatability live-bounded-delegation live-evidence-refusal public-beta-lifecycle
 
 bootstrap:
 	python scripts/bootstrap.py
@@ -29,3 +29,6 @@ live-bounded-delegation:
 
 live-evidence-refusal:
 	python scripts/run_codex_evidence_refusal_smoke.py --confirm-live
+
+public-beta-lifecycle:
+	python scripts/run_public_beta_lifecycle.py
