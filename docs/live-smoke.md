@@ -121,14 +121,15 @@ Revision 1 had an ambiguous natural-language contract: delegation was permitted 
 Revision 4 changes the evaluation identity again and:
 
 - starts each baseline and candidate app-server with a unique process-scoped `experimental_thread_store` in `in_memory` mode;
-- creates non-ephemeral measured threads inside that disposable store, so normal Codex history is not written;
+- routes `sqlite_home` to a campaign-local `state-db` directory so agent-graph metadata and other app-server state do not enter the user's normal Codex state database;
+- creates non-ephemeral measured threads inside that disposable storage boundary, so normal Codex history is not written;
 - proves `thread/read(includeTurns=true)` works for the parent before either authenticated model turn begins;
 - accepts both V1 `collabAgentToolCall` and V2 `subAgentActivity` evidence;
 - treats `/root/<name>` as a direct child and deeper paths as nested delegation;
 - reads every direct child thread before app-server shutdown;
 - validates the V2 `NEW_TASK` assignment packet stored in child history;
 - rejects child-parent mismatches, missing assignments, duplicate receivers, child-read failures, and nested child starts;
-- records protocol names, agent paths, assignment text, runtime collaboration mode, thread-store mode, and history-readability evidence in the artifact.
+- records protocol names, agent paths, assignment text, runtime collaboration mode, thread-store mode, state-database isolation, and history-readability evidence in the artifact.
 
 Before paying for another campaign, maintainers can inspect an existing trace without a model call:
 
@@ -145,13 +146,14 @@ The fixture contains three independent audit documents. The same read-only task 
 - every child receives a nonempty bounded assignment;
 - each direct child belongs to the parent thread;
 - child histories are readable from the disposable in-memory store;
+- the campaign state database is isolated beneath its artifact directory;
 - child threads are inspected and none spawns another child;
 - no file or Git commit changes in the read-only fixture;
 - the parent final answer integrates all three exact Risk-ID values and source paths;
 - no foreign skill, memory, app, plugin, or MCP contamination is observed;
 - the combined live scorer passes and the original Codex state is restored exactly.
 
-The fixture remains read-only. The app-server process owns the temporary in-memory thread store, so it disappears with the process instead of adding campaign threads to the user's normal local history. The harness reads each spawned child before shutdown so a nested delegation attempt cannot quietly disappear behind a successful parent report.
+The fixture remains read-only. The app-server process owns the temporary in-memory thread store, and its SQLite state lives beneath the campaign artifact directory. Both disappear from active runtime use when the process exits instead of adding campaign threads or agent-graph records to the user's normal Codex storage. The harness reads each spawned child before shutdown so a nested delegation attempt cannot quietly disappear behind a successful parent report.
 
 ## Validity controls
 
