@@ -36,7 +36,6 @@ Hiçbir dosyayı değiştirme ve commit oluşturma. Parent olarak child sonuçla
 
 _ORIGINAL_SESSION_CONFIG = delegation.session_config
 _ORIGINAL_EVALUATE_RUN = delegation.evaluate_run
-_ORIGINAL_RUN_VARIANT = delegation.run_read_only_variant
 _ORIGINAL_TOOL_METRICS = delegation.tool_metrics
 
 
@@ -105,10 +104,20 @@ def strings_below(value: object) -> list[str]:
 def assignment_text(items: Iterable[dict[str, Any]]) -> str:
     fragments: list[str] = []
     for item in items:
-        if normalized(item.get("type")) not in {"usermessage", "hookprompt"}:
+        item_type = normalized(item.get("type"))
+        text = "\n".join(strings_below(item)).strip()
+        if not text:
             continue
-        fragments.extend(strings_below(item))
-    return "\n".join(fragment.strip() for fragment in fragments if fragment.strip())
+        if item_type in {"usermessage", "hookprompt"}:
+            fragments.append(text)
+            continue
+        if (
+            item_type == "agentmessage"
+            and "message type: new_task" in text.lower()
+            and "payload:" in text.lower()
+        ):
+            fragments.append(text)
+    return "\n".join(fragment for fragment in fragments if fragment)
 
 
 def child_items(result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -203,7 +212,7 @@ def observe_delegation(
         items = child_items(child_result)
         text = assignment_text(items)
         assignment_by_child[child_id] = text
-        if "v2-subAgentActivity" in protocols and not text:
+        if child_id in direct_paths and not text:
             empty_prompt_calls += 1
 
         for item in items:
