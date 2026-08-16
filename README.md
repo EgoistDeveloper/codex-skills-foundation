@@ -2,17 +2,21 @@
 
 A portable, evidence-driven engineering foundation for Codex, ChatGPT, Codex Cloud, Claude Code, and clients that implement Agent Skills or Agent Plugins.
 
+**Public beta:** `engineering-foundation-core` `0.3.0-beta.1`. See [`docs/public-beta.md`](docs/public-beta.md) for scope, installation, updates, removal, tested behavior, and limitations.
+
 The repository is intentionally modular. Install the small core everywhere, then add only the domain packages a project needs. This keeps discovery context smaller and reduces accidental activation.
 
 ## Packages
 
-| Package | Install when | Skills |
-|---|---|---|
-| `engineering-foundation-core` | General engineering work | task contract, planning, bounded orchestration, implementation, debugging, source-grounded research, review, verification, handoff |
-| `engineering-foundation-laravel` | Laravel/PHP repositories | project-aware Laravel engineering |
-| `engineering-foundation-design` | Web/product UI work | design direction, rendered visual verification |
-| `engineering-foundation-cloud` | Codex Cloud or remote-agent setup | safe environment readiness |
-| `engineering-foundation-authoring` | Creating or maintaining skills/plugins | skill and plugin authoring |
+| Package | Version in this release | Install when | Skills |
+|---|---:|---|---|
+| `engineering-foundation-core` | `0.3.0-beta.1` | General engineering work | task contract, planning, bounded orchestration, implementation, debugging, source-grounded research, review, verification, handoff |
+| `engineering-foundation-laravel` | `0.2.1` | Laravel/PHP repositories | project-aware Laravel engineering |
+| `engineering-foundation-design` | `0.2.1` | Web/product UI work | design direction, rendered visual verification |
+| `engineering-foundation-cloud` | `0.2.1` | Codex Cloud or remote-agent setup | safe environment readiness |
+| `engineering-foundation-authoring` | `0.2.1` | Creating or maintaining skills/plugins | skill and plugin authoring |
+
+Only Core has the expanded authenticated live-behavior evidence used for this beta. Optional packages remain statically and provider-package validated at their existing versions.
 
 ## Design principles
 
@@ -26,16 +30,18 @@ The repository is intentionally modular. Install the small core everywhere, then
 
 ## Codex end-user install
 
-A normal Codex user needs only the marketplace and the package they intend to use:
+Use the pinned beta tag for a reproducible installation:
 
 ```bash
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.1
 codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 
-Install Laravel, design, cloud, or authoring only when needed, then start a new thread so discovery metadata reloads. End users do not run the repository's Python validation, package hashes, JSON-RPC probes, or live evaluation harness.
+Install Laravel, design, cloud, or authoring only when needed, then start a new thread so discovery metadata reloads. End users do not run the repository's Python validation, package hashes, JSON-RPC probes, or live evaluation harnesses.
 
 The marketplace manifest is `.agents/plugins/marketplace.json`. Every skill includes a minimal `agents/openai.yaml`; provider-neutral behavior remains in `SKILL.md`.
+
+Update and removal commands are documented in [`docs/public-beta.md`](docs/public-beta.md).
 
 ## Claude Code end-user install
 
@@ -49,6 +55,8 @@ Install optional packages with the same marketplace suffix. During plugin develo
 ```bash
 claude --plugin-dir ./plugins/engineering-foundation-core
 ```
+
+Claude manifests and packages are validated, but the recorded authenticated behavior matrix currently covers Codex CLI rather than Claude Code.
 
 ## Maintainer validation
 
@@ -71,13 +79,23 @@ Wrappers are also available:
 
 The deterministic bootstrap validates structure, schemas, tests, evidence fixtures, and release packages. It does not call a model.
 
-The one-command authenticated Codex behavior smoke is separate:
+Authenticated Codex behavior campaigns are separate:
 
 ```bash
-python scripts/run_codex_live_smoke.py --confirm-live
+python scripts/run_codex_positive_smoke_isolated.py --confirm-live
+python scripts/run_codex_negative_smoke_v4.py --confirm-live
+python scripts/run_codex_core_repeatability.py --confirm-live --repetitions 3
+python scripts/run_codex_bounded_delegation_smoke_v5.py --confirm-live
+python scripts/run_codex_evidence_refusal_smoke.py --confirm-live
 ```
 
-It runs one plugin-disabled baseline and one explicitly activated core-skill candidate, writes reviewable artifacts under `.eval-runs/`, and restores the original Codex plugin/config state. See [`docs/live-smoke.md`](docs/live-smoke.md).
+The final zero-model public-beta lifecycle check is:
+
+```bash
+python scripts/run_public_beta_lifecycle.py
+```
+
+It uses a disposable `CODEX_HOME` and loopback-only temporary Git marketplace to test previous-version install, marketplace upgrade, Core reinstall/update, all-package discovery, complete removal, and clean isolated state. See [`docs/live-smoke.md`](docs/live-smoke.md).
 
 ## Optional project-scoped agents
 
@@ -97,10 +115,10 @@ Add `--apply` after reviewing the destination. Existing conflicting files are no
 - `scripts/evidence_gate.py` requires exact contract coverage before `COMPLETE`.
 - `scripts/score_eval_runs.py` compares plugin-disabled baseline, previous release, and candidate without pretending they share the same commit.
 - Synthetic fixtures test scorer mechanics only and can never qualify a release.
-- `scripts/run_codex_live_smoke.py` produces one authenticated baseline/candidate smoke, not full release qualification.
+- Live campaign records cover repeated debugging/non-activation, positive bounded delegation, and failed-evidence refusal on Codex CLI.
 
-See [`docs/evals.md`](docs/evals.md), [`docs/qualification.md`](docs/qualification.md), [`docs/live-smoke.md`](docs/live-smoke.md), and [`docs/release-evidence.md`](docs/release-evidence.md).
+See [`docs/evals.md`](docs/evals.md), [`docs/qualification.md`](docs/qualification.md), [`docs/live-smoke.md`](docs/live-smoke.md), [`docs/public-beta.md`](docs/public-beta.md), and [`docs/release-evidence.md`](docs/release-evidence.md).
 
 ## Security
 
-The default distribution ships no MCP server, hooks, telemetry, credential bridge, network client, model pin, recursive delegation, global installer, or destructive automation. The optional live smoke uses the user's existing authenticated Codex session only after explicit confirmation; it never copies credential files. See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), and [`docs/security.md`](docs/security.md).
+The default distribution ships no MCP server, hooks, telemetry, credential bridge, network client, model pin, recursive delegation, global installer, or destructive automation. Optional live smokes use the user's existing authenticated Codex session only after explicit confirmation and never copy credential files. The lifecycle smoke makes zero model calls and confines all plugin state to a disposable home. See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), and [`docs/security.md`](docs/security.md).
