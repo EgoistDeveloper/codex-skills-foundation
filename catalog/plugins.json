@@ -13,7 +13,7 @@
   "plugins": [
     {
       "name": "engineering-foundation-core",
-      "version": "0.2.2",
+      "version": "0.3.0-beta.1",
       "path": "plugins/engineering-foundation-core",
       "description": "Task contracts, bounded planning and orchestration, surgical implementation, debugging, research, review, verification, and handoff.",
       "category": "Developer Tools",
