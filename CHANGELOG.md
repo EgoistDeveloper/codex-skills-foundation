@@ -27,7 +27,8 @@
 - Deferred positive isolation evidence until the base campaign layout exists, preventing the wrapper from pre-creating and then colliding with its `preflight` directory.
 - Recorded a complete three-repetition core campaign: all six positive/negative child campaigns and twelve authenticated turns passed, negative candidates retained zero core reads and zero agents, and the parent restored exact marketplace, plugin, and config state.
 - Added a bounded read-only delegation smoke that requires one to three direct children, inspects each child for nested fan-out, forbids all fixture writes, and gates the parent report on exact source-backed risk coverage.
-- Corrected the bounded-delegation positive contract after revision 1 permitted parent-only execution while its hidden gate required a child: revision 2 explicitly requires native `spawn_agent` activation and pins the stable default multi-agent v1 surface for both variants.
+- Corrected the bounded-delegation positive contract after revision 1 permitted parent-only execution while its hidden gate required a child: revision 2 explicitly required native `spawn_agent` activation.
+- Corrected the revision 1/2 observer after Codex CLI 0.147.0 selected MultiAgentV2 for `gpt-5.6-sol`: revision 3 observes both legacy `collabAgentToolCall` and V2 `subAgentActivity`, reads every direct child thread, validates V2 `NEW_TASK` assignments, and never retroactively reclassifies historical results.
 
 ## 0.2.1 - 2026-08-15
 
