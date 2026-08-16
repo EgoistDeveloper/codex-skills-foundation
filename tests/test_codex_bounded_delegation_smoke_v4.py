@@ -170,7 +170,9 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
         self.assertFalse(observation.parent_thread_ephemeral)
         self.assertTrue(observation.child_history_readable)
         self.assertEqual(observation.thread_store_mode, "in_memory")
-        self.assertIn("experimental_thread_store", server.command)
+        self.assertTrue(
+            any("experimental_thread_store" in part for part in server.command)
+        )
 
     def test_evaluation_records_thread_store_evidence(self) -> None:
         original = module._REVISION3_EVALUATE_RUN
