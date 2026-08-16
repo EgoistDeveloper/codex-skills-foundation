@@ -113,42 +113,45 @@ A finalized FAIL, INVALID, or harness-error campaign is not resumable. Start a n
 The repeatability campaign proves that a tiny edit does not trigger orchestration. This complementary positive case asks whether Codex delegates when the work is genuinely separable and then keeps that delegation bounded:
 
 ```bash
-python scripts/run_codex_bounded_delegation_smoke_v3.py --confirm-live
+python scripts/run_codex_bounded_delegation_smoke_v4.py --confirm-live
 ```
 
-Revision 1 had an ambiguous natural-language contract: delegation was permitted while the hidden gate required it. Revision 2 made the request explicit, but its observer still understood only the legacy V1 `collabAgentToolCall` packet. Codex CLI 0.147.0 selects MultiAgentV2 for `gpt-5.6-sol`; a V2 spawn is represented as `subAgentActivity` with an agent thread ID and an `/root/...` agent path. Revision 3 therefore changes the evaluation identity instead of retroactively reclassifying either historical failure.
+Revision 1 had an ambiguous natural-language contract: delegation was permitted while the hidden gate required it. Revision 2 made the request explicit, but its observer still understood only the legacy V1 `collabAgentToolCall` packet. Codex CLI 0.147.0 selects MultiAgentV2 for `gpt-5.6-sol`; a V2 spawn is represented as `subAgentActivity` with an agent thread ID and an `/root/...` agent path. Revision 3 correctly exposed the V2 children, but the measured parent was still ephemeral, while its observer requested `thread/read(includeTurns=true)` for each child. Codex rejects turn-bearing reads for ephemeral threads, so that campaign proved delegation occurred but could not complete child-history verification.
 
-Revision 3:
+Revision 4 changes the evaluation identity again and:
 
-- explicitly enables the supported MultiAgentV2 surface and caps concurrent children at three;
+- starts each baseline and candidate app-server with a unique process-scoped `experimental_thread_store` in `in_memory` mode;
+- creates non-ephemeral measured threads inside that disposable store, so normal Codex history is not written;
+- proves `thread/read(includeTurns=true)` works for the parent before either authenticated model turn begins;
 - accepts both V1 `collabAgentToolCall` and V2 `subAgentActivity` evidence;
 - treats `/root/<name>` as a direct child and deeper paths as nested delegation;
 - reads every direct child thread before app-server shutdown;
 - validates the V2 `NEW_TASK` assignment packet stored in child history;
-- rejects child-parent mismatches, missing assignments, duplicate receivers, and nested child starts;
-- records protocol names, agent paths, assignment text, and the runtime collaboration mode in the artifact.
+- rejects child-parent mismatches, missing assignments, duplicate receivers, child-read failures, and nested child starts;
+- records protocol names, agent paths, assignment text, runtime collaboration mode, thread-store mode, and history-readability evidence in the artifact.
 
 Before paying for another campaign, maintainers can inspect an existing trace without a model call:
 
 ```bash
-python scripts/run_codex_bounded_delegation_smoke_v3.py \
+python scripts/run_codex_bounded_delegation_smoke_v4.py \
   --inspect-existing .eval-runs/codex-bounded-delegation-smoke/<campaign>
 ```
 
-Post-hoc inspection can prove that an older parser missed V2 starts, but it does not replace live `thread/read` child inspection and never changes the historical scorer result.
+Post-hoc inspection can prove that an older parser missed V2 starts, but it does not replace live child-thread inspection and never changes the historical scorer result.
 
 The fixture contains three independent audit documents. The same read-only task is given to a plugin-disabled baseline and to a candidate with `engineering-foundation-core:bounded-orchestration` explicitly selected. The candidate passes only when:
 
 - one through three direct child agents are spawned;
 - every child receives a nonempty bounded assignment;
 - each direct child belongs to the parent thread;
+- child histories are readable from the disposable in-memory store;
 - child threads are inspected and none spawns another child;
 - no file or Git commit changes in the read-only fixture;
 - the parent final answer integrates all three exact Risk-ID values and source paths;
 - no foreign skill, memory, app, plugin, or MCP contamination is observed;
 - the combined live scorer passes and the original Codex state is restored exactly.
 
-The parent thread uses a read-only sandbox. The harness also reads each spawned child thread before app-server shutdown so a nested delegation attempt cannot quietly disappear behind a successful parent report.
+The fixture remains read-only. The app-server process owns the temporary in-memory thread store, so it disappears with the process instead of adding campaign threads to the user's normal local history. The harness reads each spawned child before shutdown so a nested delegation attempt cannot quietly disappear behind a successful parent report.
 
 ## Validity controls
 
