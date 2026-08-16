@@ -30,13 +30,14 @@
 - Corrected the bounded-delegation positive contract after revision 1 permitted parent-only execution while its hidden gate required a child: revision 2 explicitly required native `spawn_agent` activation.
 - Corrected the revision 1/2 observer after Codex CLI 0.147.0 selected MultiAgentV2 for `gpt-5.6-sol`: revision 3 observes both legacy `collabAgentToolCall` and V2 `subAgentActivity`, reads every direct child thread, validates V2 `NEW_TASK` assignments, and never retroactively reclassifies historical results.
 - Replaced revision 3's incompatible ephemeral-thread inspection with a unique process-scoped in-memory thread store and campaign-local SQLite state: revision 4 proves turn-bearing reads before model use, keeps campaign threads and agent-graph metadata out of normal Codex storage, and performs complete child-history verification.
+- Corrected revision 4's child-history classifier after direct children repeated their own depth-one start provenance: revision 5 records self and mirrored direct activity without counting it as nested, while still failing closed on depth-two fan-out and malformed root activity.
 
 ## 0.2.1 - 2026-08-15
 
 ### Cross-platform correctness
 
 - Excluded local virtual environments and dependency directories from repository-wide link, secret, and placeholder scans.
-- Added `.venv`, `venv`, `node_modules`, and common local tool caches to `.gitignore`.
+- Added `.venv`, `venv`, `node_modules`, and common tool caches to `.gitignore`.
 - Replaced operating-system-dependent executable checks with fixed Unix `0644` ZIP metadata.
 - Canonicalized ZIP entry order by POSIX archive path, stored entries without zlib-dependent compression, and wrote checksum manifests with explicit LF bytes.
 - Added regression tests for local dependency exclusions and cross-platform archive modes.
