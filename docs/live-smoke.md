@@ -113,10 +113,29 @@ A finalized FAIL, INVALID, or harness-error campaign is not resumable. Start a n
 The repeatability campaign proves that a tiny edit does not trigger orchestration. This complementary positive case asks whether Codex delegates when the work is genuinely separable and then keeps that delegation bounded:
 
 ```bash
-python scripts/run_codex_bounded_delegation_smoke_v2.py --confirm-live
+python scripts/run_codex_bounded_delegation_smoke_v3.py --confirm-live
 ```
 
-Revision 1 told the candidate to use bounded delegation but also said that it *could* use one through three children. The fixture was small enough to complete directly, while the selected skill explicitly defaults to one accountable agent when delegation cost is not justified. The candidate therefore completed the task safely with zero children, and the hidden minimum-one-child gate failed. Revision 2 removes that contract mismatch: it explicitly requires the native `spawn_agent` path, requires at least one direct child, and pins Codex's stable default multi-agent v1 feature on for both variants. The core package itself is unchanged by this harness correction.
+Revision 1 had an ambiguous natural-language contract: delegation was permitted while the hidden gate required it. Revision 2 made the request explicit, but its observer still understood only the legacy V1 `collabAgentToolCall` packet. Codex CLI 0.147.0 selects MultiAgentV2 for `gpt-5.6-sol`; a V2 spawn is represented as `subAgentActivity` with an agent thread ID and an `/root/...` agent path. Revision 3 therefore changes the evaluation identity instead of retroactively reclassifying either historical failure.
+
+Revision 3:
+
+- explicitly enables the supported MultiAgentV2 surface and caps concurrent children at three;
+- accepts both V1 `collabAgentToolCall` and V2 `subAgentActivity` evidence;
+- treats `/root/<name>` as a direct child and deeper paths as nested delegation;
+- reads every direct child thread before app-server shutdown;
+- validates the V2 `NEW_TASK` assignment packet stored in child history;
+- rejects child-parent mismatches, missing assignments, duplicate receivers, and nested child starts;
+- records protocol names, agent paths, assignment text, and the runtime collaboration mode in the artifact.
+
+Before paying for another campaign, maintainers can inspect an existing trace without a model call:
+
+```bash
+python scripts/run_codex_bounded_delegation_smoke_v3.py \
+  --inspect-existing .eval-runs/codex-bounded-delegation-smoke/<campaign>
+```
+
+Post-hoc inspection can prove that an older parser missed V2 starts, but it does not replace live `thread/read` child inspection and never changes the historical scorer result.
 
 The fixture contains three independent audit documents. The same read-only task is given to a plugin-disabled baseline and to a candidate with `engineering-foundation-core:bounded-orchestration` explicitly selected. The candidate passes only when:
 
@@ -129,7 +148,7 @@ The fixture contains three independent audit documents. The same read-only task 
 - no foreign skill, memory, app, plugin, or MCP contamination is observed;
 - the combined live scorer passes and the original Codex state is restored exactly.
 
-The parent thread uses a read-only sandbox. The harness also reads each spawned child thread before app-server shutdown so a nested delegation attempt cannot quietly disappear behind a cheerful final report.
+The parent thread uses a read-only sandbox. The harness also reads each spawned child thread before app-server shutdown so a nested delegation attempt cannot quietly disappear behind a successful parent report.
 
 ## Validity controls
 

@@ -25,4 +25,4 @@ live-repeatability:
 	python scripts/run_codex_core_repeatability.py --confirm-live --repetitions 3
 
 live-bounded-delegation:
-	python scripts/run_codex_bounded_delegation_smoke_v2.py --confirm-live
+	python scripts/run_codex_bounded_delegation_smoke_v3.py --confirm-live

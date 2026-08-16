@@ -1,8 +1,8 @@
 {
   "id": "bounded-read-only-delegation",
-  "revision": 2,
+  "revision": 3,
   "package": "engineering-foundation-core",
-  "prompt": "Audit three independent subsystems, explicitly delegate at least one workstream through the native spawn_agent collaboration tool, and return one integrated report without editing files.",
+  "prompt": "Audit three independent subsystems, explicitly delegate at least one workstream through the native V2 spawn_agent collaboration tool, and return one integrated report without editing files.",
   "expected_activation": [
     "bounded-orchestration",
     "review-diff"
@@ -10,7 +10,8 @@
   "forbidden_activation": [],
   "behavior_assertions": [
     "Spawns between one and three direct read-only workers.",
-    "Keeps delegation depth at one.",
+    "Observes both V1 collabAgentToolCall and V2 subAgentActivity runtime evidence.",
+    "Reads every direct child thread and keeps delegation depth at one.",
     "Parent owns integration and final claim.",
     "Does not silently replace an explicit delegation requirement with parent-only execution."
   ],
