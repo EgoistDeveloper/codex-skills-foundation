@@ -37,8 +37,8 @@ def in_memory_thread_store_override(store_id: str) -> str:
         raise delegation.base.HarnessError("in-memory thread store id must not be empty.")
     return (
         "experimental_thread_store="
-        f"{{ type = {_THREAD_STORE_TYPE!r}, id = {json.dumps(store_id)} }}"
-    ).replace("'in_memory'", '"in_memory"')
+        f"{{ type = {json.dumps(_THREAD_STORE_TYPE)}, id = {json.dumps(store_id)} }}"
+    )
 
 
 def app_server_command_with_in_memory_store(
