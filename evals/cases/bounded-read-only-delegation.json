@@ -1,6 +1,6 @@
 {
   "id": "bounded-read-only-delegation",
-  "revision": 4,
+  "revision": 5,
   "package": "engineering-foundation-core",
   "prompt": "Audit three independent subsystems, explicitly delegate at least one workstream through the native V2 spawn_agent collaboration tool, and return one integrated report without editing files.",
   "expected_activation": [
@@ -13,6 +13,9 @@
     "Observes both V1 collabAgentToolCall and V2 subAgentActivity runtime evidence.",
     "Uses a disposable process-scoped in-memory thread store so every direct child history is readable without writing normal Codex history.",
     "Routes the campaign state database to a campaign-local sqlite_home so agent-graph metadata does not enter the user's normal Codex state.",
+    "Classifies a direct child's own depth-one start record as provenance rather than nested fan-out.",
+    "Counts only depth-two-or-deeper V2 activity, or a child-authored V1 spawn, as nested delegation.",
+    "Fails closed on malformed or previously unobserved root-level child activity.",
     "Reads every direct child thread and keeps delegation depth at one.",
     "Parent owns integration and final claim.",
     "Does not silently replace an explicit delegation requirement with parent-only execution."
