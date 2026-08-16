@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.0-beta.1 - 2026-08-16
+
+### Public beta
+
+- Promoted `engineering-foundation-core` to `0.3.0-beta.1`; optional packages remain at `0.2.1` because they do not yet have equivalent authenticated live-behavior coverage.
+- Added pinned public-beta installation, update, removal, scope, and limitation documentation.
+- Added a zero-model isolated lifecycle harness that installs Core `0.2.2`, upgrades a loopback Git marketplace to the beta candidate, reinstalls Core, installs and discovers every package, removes every package and marketplace entry, and verifies clean disposable state.
+
 ### Live behavior evaluation
 
 - Added a one-command authenticated Codex baseline-vs-core smoke harness.
