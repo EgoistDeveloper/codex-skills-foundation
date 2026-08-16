@@ -104,6 +104,14 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
         self.assertLess(override_index, command.index("--listen"))
         self.assertEqual(command[-2:], ("--listen", "stdio://"))
 
+    def test_sqlite_home_override_is_absolute_and_valid_toml(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state_db_home = (Path(tmp) / "state-db").resolve()
+            override = module.sqlite_home_override(state_db_home)
+        parsed = tomllib.loads(override)
+        self.assertEqual(parsed["sqlite_home"], str(state_db_home))
+        self.assertTrue(Path(parsed["sqlite_home"]).is_absolute())
+
     def test_existing_thread_store_override_is_rejected(self) -> None:
         with self.assertRaises(module.delegation.base.HarnessError):
             module.app_server_command_with_in_memory_store(
@@ -119,7 +127,7 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
                 store_id="duplicate",
             )
 
-    def test_variant_uses_non_ephemeral_readable_in_memory_parent(self) -> None:
+    def test_variant_uses_disposable_readable_storage_boundary(self) -> None:
         original_server = module.delegation.base.AppServer
         original_parser = module.delegation.base.parse_live_turn
         module.delegation.base.AppServer = FakeAppServer
@@ -150,6 +158,13 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
                     session_config={},
                     explicit_skill=None,
                 )
+
+                expected_state_db_home = (run_dir / "state-db").resolve()
+                self.assertTrue(expected_state_db_home.is_dir())
+                self.assertEqual(
+                    Path(observation.state_db_home),
+                    expected_state_db_home,
+                )
         finally:
             module.delegation.base.AppServer = original_server
             module.delegation.base.parse_live_turn = original_parser
@@ -170,11 +185,13 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
         self.assertFalse(observation.parent_thread_ephemeral)
         self.assertTrue(observation.child_history_readable)
         self.assertEqual(observation.thread_store_mode, "in_memory")
+        self.assertTrue(observation.state_db_isolated)
         self.assertTrue(
             any("experimental_thread_store" in part for part in server.command)
         )
+        self.assertTrue(any("sqlite_home=" in part for part in server.command))
 
-    def test_evaluation_records_thread_store_evidence(self) -> None:
+    def test_evaluation_records_storage_boundary_evidence(self) -> None:
         original = module._REVISION3_EVALUATE_RUN
         module._REVISION3_EVALUATE_RUN = lambda **_: SimpleNamespace(
             row={},
@@ -183,12 +200,17 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 run_dir = Path(tmp)
+                thread_store_override = (
+                    'experimental_thread_store={ type = "in_memory", id = "store-id" }'
+                )
+                state_db_override = 'sqlite_home="C:/campaign/state-db"'
                 observation = SimpleNamespace(
                     thread_store_mode="in_memory",
                     thread_store_id="store-id",
-                    thread_store_startup_override=(
-                        'experimental_thread_store={ type = "in_memory", id = "store-id" }'
-                    ),
+                    thread_store_startup_override=thread_store_override,
+                    state_db_home="C:/campaign/state-db",
+                    state_db_startup_override=state_db_override,
+                    state_db_isolated=True,
                     parent_thread_ephemeral=False,
                     parent_read_preflight_pass=True,
                     child_history_readable=True,
@@ -207,8 +229,14 @@ class CodexBoundedDelegationSmokeV4Tests(unittest.TestCase):
         self.assertFalse(result.artifact["parent_thread_ephemeral"])
         self.assertTrue(result.artifact["parent_read_preflight_pass"])
         self.assertTrue(result.artifact["child_history_readable"])
+        self.assertTrue(result.artifact["state_db_isolated"])
+        self.assertEqual(result.artifact["state_db_home"], "C:/campaign/state-db")
         self.assertIn(
-            result.artifact["thread_store_startup_override"],
+            thread_store_override,
+            result.artifact["startup_config_overrides"],
+        )
+        self.assertIn(
+            state_db_override,
             result.artifact["startup_config_overrides"],
         )
         self.assertEqual(written, result.artifact)
