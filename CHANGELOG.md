@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hardened the maintainer release packager, which previously lacked a Windows junction/reparse-point containment gate, to reject linked or special entries and resolved paths outside repository/plugin roots before archive reads. There is no evidence that `v0.3.0-beta.1` release assets were contaminated.
+
 ## 0.3.0-beta.1 - 2026-08-16
 
 ### Public beta
