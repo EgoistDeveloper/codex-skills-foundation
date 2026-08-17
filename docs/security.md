@@ -13,7 +13,7 @@
 
 ## Default controls
 
-- Package archives reject symlinks, absolute paths, and parent traversal.
+- Package archives reject file and directory symlinks, Windows junctions and other reparse points, unsupported special files, absolute paths, parent traversal, and resolved-path escapes. Every regular file is revalidated immediately before the release ZIP reads it.
 - No MCP, hook, telemetry, credential bridge, or network client ships by default.
 - Portable skills contain no pre-approved tool grants.
 - Host sandbox and approvals remain authoritative.
