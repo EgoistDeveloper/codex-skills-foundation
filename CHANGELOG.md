@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Hardened the maintainer release packager, which previously lacked a Windows junction/reparse-point containment gate, to reject linked or special entries and resolved paths outside repository/plugin roots before archive reads. There is no evidence that `v0.3.0-beta.1` release assets were contaminated.
+- Hardened the maintainer release packager, which previously lacked complete Windows junction/reparse-point and output containment gates, to reject linked path components, special entries, cross-platform traversal forms, output escapes, and linked artifact destinations. ZIPs and the checksum manifest are now prepared atomically, and failed runs remove outputs they generated. There is no evidence that `v0.3.0-beta.1` release assets were contaminated.
 
 ## 0.3.0-beta.1 - 2026-08-16
 

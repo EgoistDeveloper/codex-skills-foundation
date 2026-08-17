@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +38,26 @@ def write_minimal_plugin(plugin_root: Path) -> None:
         "---\nname: fixture\ndescription: fixture\n---\n", encoding="utf-8"
     )
     (plugin_root / "inside.txt").write_text("inside\n", encoding="utf-8")
+
+
+def write_minimal_catalog(repository: Path) -> Path:
+    return write_catalog(
+        repository,
+        [
+            {
+                "name": "fixture-plugin",
+                "version": "0.0.0",
+                "path": "plugins/fixture-plugin",
+            }
+        ],
+    )
+
+
+def write_catalog(repository: Path, plugins: list[dict[str, str]]) -> Path:
+    catalog = repository / "catalog/plugins.json"
+    catalog.parent.mkdir(parents=True, exist_ok=True)
+    catalog.write_text(json.dumps({"plugins": plugins}), encoding="utf-8")
+    return catalog
 
 
 @contextlib.contextmanager
@@ -134,6 +154,20 @@ class PackagingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "fixture-plugin"):
                     module.safe_files(plugin_link, repository_root=repository)
 
+    def test_plugin_path_ancestor_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "repository"
+            repository.mkdir()
+            real_plugins = repository / "real-plugins"
+            write_minimal_plugin(real_plugins / "fixture-plugin")
+            linked_plugins = repository / "plugins"
+
+            with real_symlink(self, real_plugins, linked_plugins, directory=True):
+                with self.assertRaisesRegex(ValueError, "plugins"):
+                    module.safe_files(
+                        linked_plugins / "fixture-plugin", repository_root=repository
+                    )
+
     @unittest.skipUnless(os.name == "nt", "real Windows directory junctions require Windows")
     def test_windows_descendant_junction_escape_is_rejected_and_not_archived(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -184,6 +218,23 @@ class PackagingTests(unittest.TestCase):
                     module.safe_files(plugin_junction, repository_root=repository)
 
     @unittest.skipUnless(os.name == "nt", "real Windows directory junctions require Windows")
+    def test_windows_plugin_path_ancestor_junction_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "repository"
+            repository.mkdir()
+            real_plugins = repository / "real-plugins"
+            write_minimal_plugin(real_plugins / "fixture-plugin")
+            plugin_parent = repository / "plugins"
+
+            with windows_junction(self, real_plugins, plugin_parent):
+                self.assertFalse(plugin_parent.is_symlink())
+                self.assertTrue(module.is_reparse_point(plugin_parent.lstat()))
+                with self.assertRaisesRegex(ValueError, "plugins"):
+                    module.safe_files(
+                        plugin_parent / "fixture-plugin", repository_root=repository
+                    )
+
+    @unittest.skipUnless(os.name == "nt", "real Windows directory junctions require Windows")
     def test_nested_windows_junction_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -228,6 +279,39 @@ class PackagingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "outside repository root"):
                 module.safe_files(plugin_root, repository_root=repository)
 
+    def test_release_path_rejects_cross_platform_backslash_traversal(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsafe release path"):
+            module.validate_relative_path(
+                PurePosixPath(r"nested\..\representative-secret.txt")
+            )
+
+    @unittest.skipIf(os.name == "nt", "backslash is not a legal filename character on Windows")
+    def test_posix_backslash_traversal_name_is_rejected_and_not_archived(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            plugin_root = repository / "plugins/fixture-plugin"
+            write_minimal_plugin(plugin_root)
+            (plugin_root / r"nested\..\representative-secret.txt").write_text(
+                "harmless content\n", encoding="utf-8"
+            )
+            output = base / "dist"
+            output.mkdir()
+            archive = output / "fixture-plugin-0.0.0.zip"
+
+            with mock.patch.object(module, "ROOT", repository):
+                with self.assertRaisesRegex(ValueError, "unsafe release path"):
+                    module.build_archive(
+                        {
+                            "name": "fixture-plugin",
+                            "version": "0.0.0",
+                            "path": "plugins/fixture-plugin",
+                        },
+                        output,
+                    )
+
+            self.assertFalse(archive.exists())
+
     def test_build_archive_revalidates_file_immediately_before_read(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -239,6 +323,7 @@ class PackagingTests(unittest.TestCase):
             inside = plugin_root / "inside.txt"
             output = base / "dist"
             output.mkdir()
+            archive = output / "fixture-plugin-0.0.0.zip"
             original_safe_files = module.safe_files
             link_created = False
 
@@ -268,6 +353,42 @@ class PackagingTests(unittest.TestCase):
             finally:
                 if link_created and inside.is_symlink():
                     inside.unlink()
+
+            self.assertFalse(archive.exists(), "a failed build must not leave a partial archive")
+            self.assertEqual(list(output.iterdir()), [], "a failed build must remove temp files")
+
+    def test_failed_rebuild_preserves_previous_complete_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            plugin_root = repository / "plugins/fixture-plugin"
+            write_minimal_plugin(plugin_root)
+            output = base / "dist"
+            output.mkdir()
+            archive = output / "fixture-plugin-0.0.0.zip"
+            previous = b"previous complete archive\n"
+            archive.write_bytes(previous)
+
+            with (
+                mock.patch.object(module, "ROOT", repository),
+                mock.patch.object(
+                    module,
+                    "read_verified_file",
+                    side_effect=ValueError("simulated read failure"),
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "simulated read failure"):
+                    module.build_archive(
+                        {
+                            "name": "fixture-plugin",
+                            "version": "0.0.0",
+                            "path": "plugins/fixture-plugin",
+                        },
+                        output,
+                    )
+
+            self.assertEqual(archive.read_bytes(), previous)
+            self.assertEqual(list(output.iterdir()), [archive])
 
     @unittest.skipUnless(os.name == "nt", "real Windows directory junctions require Windows")
     def test_build_archive_revalidates_parent_components_before_read(self) -> None:
@@ -310,13 +431,280 @@ class PackagingTests(unittest.TestCase):
                                 output,
                             )
 
-                if archive.exists():
-                    with zipfile.ZipFile(archive) as zf:
-                        if "nested/payload.txt" in zf.namelist():
-                            self.assertNotEqual(
-                                zf.read("nested/payload.txt"),
-                                b"post-enumeration replacement\n",
-                            )
+                self.assertFalse(
+                    archive.exists(), "a rejected parent replacement must not publish an archive"
+                )
+
+    @unittest.skipUnless(os.name == "nt", "real Windows directory junctions require Windows")
+    def test_main_rejects_output_junction_before_deleting_or_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            outside = base / "outside"
+            outside.mkdir()
+            existing = outside / "existing.zip"
+            existing.write_bytes(b"harmless existing archive\n")
+            output_junction = repository / "dist"
+
+            with windows_junction(self, outside, output_junction):
+                self.assertFalse(output_junction.is_symlink())
+                self.assertTrue(module.is_reparse_point(output_junction.lstat()))
+                with (
+                    mock.patch.object(module, "ROOT", repository),
+                    mock.patch.object(module, "CATALOG", catalog),
+                    mock.patch.object(
+                        module.sys,
+                        "argv",
+                        ["package_plugins.py", "--output", "dist"],
+                    ),
+                ):
+                    result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertEqual(existing.read_bytes(), b"harmless existing archive\n")
+            self.assertFalse((outside / "fixture-plugin-0.0.0.zip").exists())
+            self.assertFalse((outside / "SHA256SUMS").exists())
+
+    def test_main_rejects_output_directory_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            outside = base / "outside"
+            outside.mkdir()
+            existing = outside / "existing.zip"
+            existing.write_bytes(b"harmless existing archive\n")
+            output_link = repository / "dist"
+
+            with real_symlink(self, outside, output_link, directory=True):
+                with (
+                    mock.patch.object(module, "ROOT", repository),
+                    mock.patch.object(module, "CATALOG", catalog),
+                    mock.patch.object(
+                        module.sys,
+                        "argv",
+                        ["package_plugins.py", "--output", "dist"],
+                    ),
+                ):
+                    result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertEqual(existing.read_bytes(), b"harmless existing archive\n")
+            self.assertFalse((outside / "fixture-plugin-0.0.0.zip").exists())
+            self.assertFalse((outside / "SHA256SUMS").exists())
+
+    @unittest.skipUnless(os.name == "nt", "real Windows directory junctions require Windows")
+    def test_main_rejects_nested_output_junction_before_creating_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            outside = base / "outside"
+            outside.mkdir()
+            output_parent = repository / "release"
+
+            with windows_junction(self, outside, output_parent):
+                with (
+                    mock.patch.object(module, "ROOT", repository),
+                    mock.patch.object(module, "CATALOG", catalog),
+                    mock.patch.object(
+                        module.sys,
+                        "argv",
+                        ["package_plugins.py", "--output", "release/dist"],
+                    ),
+                ):
+                    result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertFalse((outside / "dist").exists())
+
+    def test_main_rejects_broken_checksum_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            output = repository / "dist"
+            output.mkdir()
+            outside_checksum = base / "outside-checksums.txt"
+            checksum_link = output / "SHA256SUMS"
+
+            with real_symlink(self, outside_checksum, checksum_link, directory=False):
+                self.assertFalse(checksum_link.exists())
+                self.assertTrue(checksum_link.is_symlink())
+                with (
+                    mock.patch.object(module, "ROOT", repository),
+                    mock.patch.object(module, "CATALOG", catalog),
+                    mock.patch.object(
+                        module.sys,
+                        "argv",
+                        ["package_plugins.py", "--output", "dist"],
+                    ),
+                ):
+                    result = module.main()
+
+                self.assertEqual(result, 1)
+                self.assertFalse(outside_checksum.exists())
+
+    def test_main_rejects_existing_archive_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            output = repository / "dist"
+            output.mkdir()
+            outside_archive = base / "outside.zip"
+            outside_archive.write_bytes(b"harmless outside archive\n")
+            archive_link = output / "fixture-plugin-0.0.0.zip"
+
+            with real_symlink(self, outside_archive, archive_link, directory=False):
+                with (
+                    mock.patch.object(module, "ROOT", repository),
+                    mock.patch.object(module, "CATALOG", catalog),
+                    mock.patch.object(
+                        module.sys,
+                        "argv",
+                        ["package_plugins.py", "--output", "dist"],
+                    ),
+                ):
+                    result = module.main()
+
+                self.assertEqual(result, 1)
+                self.assertEqual(
+                    outside_archive.read_bytes(), b"harmless outside archive\n"
+                )
+
+    def test_main_rejects_output_outside_repository_before_creating_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            outside_output = base / "outside-dist"
+
+            with (
+                mock.patch.object(module, "ROOT", repository),
+                mock.patch.object(module, "CATALOG", catalog),
+                mock.patch.object(
+                    module.sys,
+                    "argv",
+                    ["package_plugins.py", "--output", str(outside_output)],
+                ),
+            ):
+                result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertFalse(outside_output.exists())
+
+    def test_main_removes_completed_outputs_when_a_later_plugin_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "repository"
+            write_minimal_plugin(repository / "plugins/first-plugin")
+            (repository / "plugins/broken-plugin").mkdir(parents=True)
+            catalog = write_catalog(
+                repository,
+                [
+                    {
+                        "name": "first-plugin",
+                        "version": "0.0.0",
+                        "path": "plugins/first-plugin",
+                    },
+                    {
+                        "name": "broken-plugin",
+                        "version": "0.0.0",
+                        "path": "plugins/broken-plugin",
+                    },
+                ],
+            )
+
+            with (
+                mock.patch.object(module, "ROOT", repository),
+                mock.patch.object(module, "CATALOG", catalog),
+                mock.patch.object(module.sys, "argv", ["package_plugins.py"]),
+            ):
+                result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertEqual(list((repository / "dist").iterdir()), [])
+
+    def test_main_removes_first_build_when_determinism_rebuild_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            catalog = write_minimal_catalog(repository)
+            original_build_archive = module.build_archive
+            call_count = 0
+
+            def fail_second_build(*args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 2:
+                    raise ValueError("simulated deterministic rebuild failure")
+                return original_build_archive(*args, **kwargs)
+
+            with (
+                mock.patch.object(module, "ROOT", repository),
+                mock.patch.object(module, "CATALOG", catalog),
+                mock.patch.object(module, "build_archive", fail_second_build),
+                mock.patch.object(
+                    module.sys,
+                    "argv",
+                    ["package_plugins.py", "--check"],
+                ),
+            ):
+                result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertEqual(call_count, 2)
+            self.assertEqual(list((repository / "dist").iterdir()), [])
+
+    def test_main_rejects_duplicate_archive_destinations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            plugin = {
+                "name": "fixture-plugin",
+                "version": "0.0.0",
+                "path": "plugins/fixture-plugin",
+            }
+            catalog = write_catalog(repository, [plugin, plugin.copy()])
+
+            with (
+                mock.patch.object(module, "ROOT", repository),
+                mock.patch.object(module, "CATALOG", catalog),
+                mock.patch.object(module.sys, "argv", ["package_plugins.py"]),
+            ):
+                result = module.main()
+
+            self.assertEqual(result, 1)
+            self.assertEqual(list((repository / "dist").iterdir()), [])
+
+    def test_build_archive_rejects_archive_filename_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repository = base / "repository"
+            write_minimal_plugin(repository / "plugins/fixture-plugin")
+            output = base / "dist"
+            output.mkdir()
+            escaped_archive = base / "escaped-0.0.0.zip"
+
+            with mock.patch.object(module, "ROOT", repository):
+                with self.assertRaisesRegex(ValueError, "archive filename"):
+                    module.build_archive(
+                        {
+                            "name": "../escaped",
+                            "version": "0.0.0",
+                            "path": "plugins/fixture-plugin",
+                        },
+                        output,
+                    )
+
+            self.assertFalse(escaped_archive.exists())
 
     def test_each_plugin_builds_a_safe_deterministic_archive(self) -> None:
         catalog = json.loads((ROOT / "catalog/plugins.json").read_text(encoding="utf-8"))

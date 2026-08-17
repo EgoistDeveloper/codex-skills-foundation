@@ -13,7 +13,7 @@
 
 ## Default controls
 
-- Package archives reject file and directory symlinks, Windows junctions and other reparse points, unsupported special files, absolute paths, parent traversal, and resolved-path escapes. Every regular file is revalidated immediately before the release ZIP reads it.
+- Package inputs and repository-contained output paths reject file and directory symlinks, linked path components, Windows junctions and other reparse points, unsupported special files, absolute paths, cross-platform parent traversal, and resolved-path escapes. Every regular input is revalidated immediately before the release ZIP reads it; archives and `SHA256SUMS` are prepared as private temporary regular files and atomically published only after validation.
 - No MCP, hook, telemetry, credential bridge, or network client ships by default.
 - Portable skills contain no pre-approved tool grants.
 - Host sandbox and approvals remain authoritative.
