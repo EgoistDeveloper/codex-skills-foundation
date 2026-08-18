@@ -19,6 +19,8 @@ import zipfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
+import qualification_workspace
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
@@ -1201,6 +1203,7 @@ def create_live_runtime_context(
     artifact_dir: Path,
     run_root: Path,
     marketplace_root: Path,
+    workspace_root: Path | None = None,
     marketplace_name: str,
     repository: Path,
     expected_commit: str,
@@ -1212,9 +1215,18 @@ def create_live_runtime_context(
     artifact_dir = _require_path_under(
         artifact_dir, run_root, label="candidate artifact directory"
     )
-    marketplace_root = _require_path_under(
-        marketplace_root, run_root, label="candidate marketplace"
-    )
+    if workspace_root is None:
+        workspace_root = run_root
+        marketplace_root = _require_path_under(
+            marketplace_root, run_root, label="candidate marketplace"
+        )
+    else:
+        workspace_root = qualification_workspace.managed_workspace_root(
+            workspace_root
+        )
+        marketplace_root = _require_path_under(
+            marketplace_root, workspace_root, label="candidate marketplace"
+        )
     manifest = verify_candidate_manifest(
         manifest_path,
         artifact_dir,
@@ -1236,6 +1248,7 @@ def create_live_runtime_context(
     return {
         "schema_version": 1,
         "run_root": str(run_root),
+        "workspace_root": str(workspace_root),
         "manifest_path": str(manifest_path),
         "artifact_dir": str(artifact_dir),
         "marketplace_root": str(marketplace_root),
@@ -1267,11 +1280,27 @@ def load_live_runtime_context(
     run_root = Path(run_root_value).resolve(strict=True)
     _require_path_under(context_path, run_root, label="candidate context")
     paths: dict[str, Path] = {}
-    for field in ("manifest_path", "artifact_dir", "marketplace_root"):
+    for field in ("manifest_path", "artifact_dir"):
         value = context.get(field)
         if not isinstance(value, str):
             raise CandidateError(f"candidate live context omitted {field}")
         paths[field] = _require_path_under(Path(value), run_root, label=field)
+    workspace_root_value = context.get("workspace_root")
+    if not isinstance(workspace_root_value, str):
+        raise CandidateError("candidate live context omitted workspace_root")
+    lexical_workspace_root = Path(os.path.abspath(workspace_root_value))
+    if lexical_workspace_root == Path(os.path.abspath(run_root)):
+        workspace_root = run_root
+    else:
+        workspace_root = qualification_workspace.managed_workspace_root(
+            lexical_workspace_root
+        )
+    marketplace_value = context.get("marketplace_root")
+    if not isinstance(marketplace_value, str):
+        raise CandidateError("candidate live context omitted marketplace_root")
+    paths["marketplace_root"] = _require_path_under(
+        Path(marketplace_value), workspace_root, label="candidate marketplace"
+    )
     expected_commit = git_text(repository, "rev-parse", "HEAD")
     manifest = verify_candidate_manifest(
         paths["manifest_path"],
@@ -1284,6 +1313,7 @@ def load_live_runtime_context(
         artifact_dir=paths["artifact_dir"],
         run_root=run_root,
         marketplace_root=paths["marketplace_root"],
+        workspace_root=workspace_root,
         marketplace_name=str(context.get("marketplace_name", "")),
         repository=repository,
         expected_commit=expected_commit,

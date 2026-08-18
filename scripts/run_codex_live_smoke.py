@@ -30,6 +30,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+import qualification_workspace
 import release_candidate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -245,7 +246,11 @@ def run_process(
 
 
 def git(args: list[str], *, cwd: Path, expected: set[int] | None = None) -> str:
-    result = run_process(["git", *args], cwd=cwd, expected=expected)
+    result = run_process(
+        ["git", "-c", "core.longpaths=true", *args],
+        cwd=cwd,
+        expected=expected,
+    )
     return result.stdout.rstrip("\r\n")
 
 
@@ -884,7 +889,17 @@ def create_fixture(seed: Path) -> None:
 
 
 def clone_fixture(seed: Path, destination: Path) -> None:
-    run_process(["git", "clone", "--quiet", str(seed), str(destination)])
+    run_process(
+        [
+            "git",
+            "-c",
+            "core.longpaths=true",
+            "clone",
+            "--quiet",
+            str(seed),
+            str(destination),
+        ]
+    )
     git(["config", "user.name", "Engineering Foundation Smoke"], cwd=destination)
     git(["config", "user.email", "smoke@example.invalid"], cwd=destination)
 
@@ -1513,9 +1528,14 @@ def main() -> int:
     campaign = campaign_directory(output_root)
     campaign_id = f"codex-core-live-smoke-{campaign.name}"
 
-    seed = campaign / "seed"
-    baseline_workspace = campaign / "workspaces" / "baseline"
-    candidate_workspace = campaign / "workspaces" / "candidate"
+    workspace_lease = qualification_workspace.allocate_workspace(
+        artifact_root=campaign,
+        mapping_path=campaign / "workspace-map.json",
+        identity={"campaign": campaign.name, "family": "positive"},
+    )
+    seed = workspace_lease.child("s")
+    baseline_workspace = workspace_lease.child("b")
+    candidate_workspace = workspace_lease.child("c")
     baseline_dir = campaign / "baseline"
     candidate_dir = campaign / "candidate"
     preflight_dir = campaign / "preflight"
@@ -1794,7 +1814,13 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
-    except (HarnessError, OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        sys.exit(qualification_workspace.run_with_cleanup(main))
+    except (
+        HarnessError,
+        qualification_workspace.WorkspaceError,
+        OSError,
+        subprocess.SubprocessError,
+        json.JSONDecodeError,
+    ) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         sys.exit(1)

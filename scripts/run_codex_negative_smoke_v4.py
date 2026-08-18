@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -254,8 +253,11 @@ def discover_runtime_mcp_inventory(
     if timeout_seconds < 5:
         raise base.HarnessError("runtime MCP probe timeout must be at least five seconds.")
 
-    with tempfile.TemporaryDirectory(prefix="engineering-foundation-mcp-probe-") as tmp:
-        trace_path = Path(tmp) / "runtime-mcp-probe-trace.jsonl"
+    with base.qualification_workspace.allocate_probe_workspace(
+        repository_root=base.ROOT,
+        family="mcpprobe",
+    ) as probe_workspace:
+        trace_path = probe_workspace.child("t")
         request_timeout = max(30, min(timeout_seconds, 120))
         with base.AppServer(
             command=launchers.app_server_command,
@@ -316,12 +318,13 @@ def verify_runtime_mcp_veto(
         enabled_plugin_id=None,
     )
 
-    temporary: tempfile.TemporaryDirectory[str] | None
+    temporary: base.qualification_workspace.WorkspaceLease | None
     if campaign is None:
-        temporary = tempfile.TemporaryDirectory(
-            prefix="engineering-foundation-mcp-veto-"
+        temporary = base.qualification_workspace.allocate_probe_workspace(
+            repository_root=base.ROOT,
+            family="mcpveto",
         )
-        trace_path = Path(temporary.name) / "runtime-mcp-veto-trace.jsonl"
+        trace_path = temporary.child("t")
     else:
         temporary = None
         trace_path = campaign / "preflight" / "runtime-mcp-veto-trace.jsonl"
@@ -522,7 +525,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(base.qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted.", file=sys.stderr)
         raise SystemExit(130)

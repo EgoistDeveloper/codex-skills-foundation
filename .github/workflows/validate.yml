@@ -93,9 +93,13 @@ jobs:
           PY
 
   exact-artifact-qualification:
-    name: exact-artifact qualification (zero-model)
+    name: exact-artifact qualification rehearsal (${{ matrix.os }})
     needs: [bootstrap, cross-platform-package-reproducibility]
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - name: Check out exact candidate commit
@@ -120,16 +124,15 @@ jobs:
         run: |
           python -m pip install --requirement requirements-dev.txt
           npm install --global @openai/codex@0.146.0 @anthropic-ai/claude-code@2.1.220
-      - name: Download exact Linux candidate artifacts
+      - name: Download exact candidate artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: engineering-foundation-packages-ubuntu-latest
+          name: engineering-foundation-packages-${{ matrix.os }}
           path: artifacts/candidate
       - name: Verify candidate and release-asset fixture
         run: |
           python scripts/release_candidate.py verify --manifest artifacts/candidate/release-candidate.json --artifacts artifacts/candidate
-          MANIFEST_SHA="$(python -c 'import hashlib, pathlib; print(hashlib.sha256(pathlib.Path("artifacts/candidate/release-candidate.json").read_bytes()).hexdigest())')"
-          python scripts/release_candidate.py verify-assets --manifest artifacts/candidate/release-candidate.json --artifacts artifacts/candidate --tag v0.3.0-beta.2 --tag-target "$(git rev-parse HEAD)" --expected-manifest-sha256 "$MANIFEST_SHA" --prerelease
-      - name: Run exact-archive lifecycle without model calls
+          python -c "import hashlib,pathlib,subprocess,sys; p=pathlib.Path('artifacts/candidate/release-candidate.json'); d=hashlib.sha256(p.read_bytes()).hexdigest(); h=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(); subprocess.check_call([sys.executable,'scripts/release_candidate.py','verify-assets','--manifest',str(p),'--artifacts','artifacts/candidate','--tag','v0.3.0-beta.2','--tag-target',h,'--expected-manifest-sha256',d,'--prerelease'])"
+      - name: Run complete exact-archive rehearsal without model calls
         run: |
-          python scripts/run_exact_artifact_qualification.py --candidate-manifest artifacts/candidate/release-candidate.json --artifacts artifacts/candidate --output .eval-runs/exact-artifact-ci --lifecycle-only
+          python scripts/run_exact_artifact_qualification.py --candidate-manifest artifacts/candidate/release-candidate.json --artifacts artifacts/candidate --output .eval-runs/exact-artifact-ci --zero-model-rehearsal

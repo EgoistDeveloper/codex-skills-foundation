@@ -80,7 +80,9 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(
+            delegation.base.qualification_workspace.run_with_cleanup(main)
+        )
     except KeyboardInterrupt:
         print("ERROR: interrupted.", file=sys.stderr)
         raise SystemExit(130)

@@ -16,7 +16,6 @@ import os
 import signal
 import subprocess
 import sys
-import tempfile
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
@@ -84,14 +83,15 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
         self.config_restored = False
 
     def __enter__(self) -> "CampaignStateGuard":
-        with tempfile.TemporaryDirectory(
-            prefix="engineering-foundation-repeatability-state-"
-        ) as tmp:
+        with base.qualification_workspace.allocate_probe_workspace(
+            repository_root=_impl.ROOT,
+            family="stateprobe",
+        ) as probe_workspace:
             with base.AppServer(
                 command=self.launchers.app_server_command,
                 node_executable=self.launchers.node_executable,
                 cwd=_impl.ROOT,
-                trace_path=Path(tmp) / "home-trace.jsonl",
+                trace_path=probe_workspace.child("t"),
                 timeout_seconds=120,
             ) as server:
                 self.codex_home = server.initialize()
@@ -509,12 +509,13 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(base.qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted after checkpoint and state restoration.", file=sys.stderr)
         raise SystemExit(130)
     except (
         base.HarnessError,
+        base.qualification_workspace.WorkspaceError,
         OSError,
         subprocess.SubprocessError,
         json.JSONDecodeError,

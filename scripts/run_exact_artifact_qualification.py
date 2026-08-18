@@ -20,6 +20,8 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import release_candidate
+import qualification_rehearsal
+import qualification_workspace
 import run_codex_live_smoke as live_base
 import run_codex_core_repeatability as repeat_entry
 from console_output import (
@@ -263,6 +265,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--confirm-live", action="store_true")
     parser.add_argument(
+        "--zero-model-rehearsal",
+        action="store_true",
+        help="Exercise every qualification infrastructure path with zero model calls.",
+    )
+    parser.add_argument(
         "--lifecycle-only",
         action="store_true",
         help="Run the zero-model exact-artifact lifecycle only (for CI).",
@@ -274,9 +281,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.confirm_live == args.lifecycle_only:
+    if sum(bool(value) for value in (
+        args.confirm_live,
+        args.lifecycle_only,
+        args.zero_model_rehearsal,
+    )) != 1:
         raise QualificationError(
-            "select exactly one of --confirm-live or --lifecycle-only"
+            "select exactly one qualification mode"
         )
     if args.repetitions != 3:
         raise QualificationError("canonical exact-artifact repeatability requires 3 repetitions")
@@ -295,6 +306,16 @@ def main() -> int:
     output_root = bounded_output_root(args.output)
     output_root.mkdir(parents=True, exist_ok=True)
     run_root = output_root / f"{stamp}-{uuid.uuid4().hex[:8]}"
+    qualification_workspace.validate_artifact_paths(
+        {
+            "candidate_context": run_root / "candidate-context.json",
+            "lifecycle_state": run_root / "lifecycle" / ("c" * 24) / "state-restoration.json",
+            "repeatability_state": run_root / "live/repeatability" / ("c" * 24) / "runs/positive/rep-03/attempt-01" / ("c" * 24) / "state-restoration.json",
+            "receipt_identity": run_root / "live/evidence-refusal" / ("c" * 24) / "receipt-outputs" / ("c" * 40) / "receipt.json",
+            "transcript_identity": run_root / "transcripts/evidence-refusal.artifacts.json",
+            "rehearsal_summary": run_root / "rehearsal/zero-model-rehearsal.json",
+        }
+    )
     run_root.mkdir(parents=True, exist_ok=False)
     candidate_dir = run_root / "candidate"
     copied_manifest, copied_artifacts = copy_candidate_set(
@@ -311,7 +332,12 @@ def main() -> int:
     manifest_digest = release_candidate.sha256_file(copied_manifest)
 
     marketplace_name = f"egoist-engineering-foundation-h04-{run_root.name.lower()}"
-    marketplace_root = run_root / "candidate-marketplace"
+    marketplace_lease = qualification_workspace.allocate_workspace(
+        artifact_root=run_root,
+        mapping_path=run_root / "candidate-marketplace-workspace.json",
+        identity={"campaign": run_root.name, "family": "marketplace"},
+    )
+    marketplace_root = marketplace_lease.child("m")
     release_candidate.materialize_candidate_marketplace(
         copied_manifest,
         copied_artifacts,
@@ -325,6 +351,7 @@ def main() -> int:
         artifact_dir=copied_artifacts,
         run_root=run_root,
         marketplace_root=marketplace_root,
+        workspace_root=marketplace_lease.path,
         marketplace_name=marketplace_name,
         repository=ROOT,
         expected_commit=head,
@@ -357,6 +384,7 @@ def main() -> int:
         raise QualificationError(str(exc)) from exc
 
     if args.lifecycle_only:
+        marketplace_lease.cleanup()
         summary = {
             "schema_version": 1,
             "qualification_status": "LIFECYCLE_ONLY",
@@ -383,6 +411,48 @@ def main() -> int:
         release_candidate.validate_shareable_provenance(summary)
         release_candidate.write_json(run_root / "qualification-summary.json", summary)
         print(f"exact-artifact qualification: LIFECYCLE_ONLY PASS ({run_root})")
+        return 0
+
+    if args.zero_model_rehearsal:
+        previous_context = os.environ.get(release_candidate.LIVE_CONTEXT_ENV)
+        try:
+            os.environ[release_candidate.LIVE_CONTEXT_ENV] = str(context_path)
+            live_base._CANDIDATE_RUNTIME_CACHE = None
+            live_base.candidate_runtime()
+            rehearsal = qualification_rehearsal.run(
+                artifact_root=run_root / "rehearsal",
+                campaign_id=run_root.name,
+                marketplace_root=marketplace_root,
+                lifecycle_summary=lifecycle_summary,
+            )
+        finally:
+            if previous_context is None:
+                os.environ.pop(release_candidate.LIVE_CONTEXT_ENV, None)
+            else:
+                os.environ[release_candidate.LIVE_CONTEXT_ENV] = previous_context
+            live_base._CANDIDATE_RUNTIME_CACHE = None
+        marketplace_lease.cleanup()
+        summary = {
+            "schema_version": 1,
+            "qualification_status": "ZERO_MODEL_REHEARSAL_PASS",
+            "candidate_manifest": relative_artifact(copied_manifest, run_root),
+            "subject_commit_sha": head,
+            "package_sha256": {
+                package["name"]: package["sha256"] for package in manifest["packages"]
+            },
+            "lifecycle_evidence": relative_artifact(lifecycle_summary_path, run_root),
+            "rehearsal_evidence": relative_artifact(
+                run_root / "rehearsal/zero-model-rehearsal.json", run_root
+            ),
+            "model_turns": 0,
+            "model_calls": rehearsal["model_calls"],
+            "state_restored": True,
+            "workspace_cleanup": "PASS",
+            "live_cases": [],
+        }
+        release_candidate.validate_shareable_provenance(summary)
+        release_candidate.write_json(run_root / "qualification-summary.json", summary)
+        print(f"exact-artifact qualification: ZERO_MODEL_REHEARSAL PASS ({run_root})")
         return 0
 
     live_evidence: list[dict[str, Any]] = []
@@ -581,6 +651,7 @@ def main() -> int:
     if _contains_absolute_path(summary):
         raise QualificationError("shareable qualification summary contains an absolute path")
     release_candidate.validate_shareable_provenance(summary)
+    marketplace_lease.cleanup()
     release_candidate.write_json(run_root / "qualification-summary.json", summary)
     print(f"exact-artifact qualification: PARTIAL PASS ({run_root})")
     return 0
@@ -588,19 +659,26 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(qualification_workspace.run_with_cleanup(main))
     except (
         QualificationError,
+        qualification_rehearsal.RehearsalError,
+        qualification_workspace.WorkspaceError,
         release_candidate.CandidateError,
         live_base.HarnessError,
         OSError,
         subprocess.SubprocessError,
         json.JSONDecodeError,
     ) as exc:
+        payload = (
+            exc.payload()
+            if isinstance(exc, qualification_workspace.WorkspacePathError)
+            else release_candidate.failure_payload("exact-artifact-qualification", exc)
+        )
         write_console_safe(
             sys.stderr,
             json.dumps(
-                release_candidate.failure_payload("exact-artifact-qualification", exc),
+                payload,
                 ensure_ascii=False,
                 separators=(",", ":"),
             )

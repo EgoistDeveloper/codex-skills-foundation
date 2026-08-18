@@ -21,7 +21,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import tempfile
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +32,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import run_codex_live_smoke as base
 import release_candidate
+import qualification_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "catalog" / "plugins.json"
@@ -87,7 +87,11 @@ def git(
     expected: set[int] | None = None,
 ) -> str:
     return str(
-        run_process(["git", *args], cwd=cwd, expected=expected).stdout
+        run_process(
+            ["git", "-c", "core.longpaths=true", *args],
+            cwd=cwd,
+            expected=expected,
+        ).stdout
     ).rstrip("\r\n")
 
 
@@ -496,10 +500,12 @@ def main() -> int:
     }
 
     try:
-        with tempfile.TemporaryDirectory(
-            prefix="engineering-foundation-beta-lifecycle-"
-        ) as temporary:
-            temporary_root = Path(temporary).resolve()
+        with qualification_workspace.allocate_workspace(
+            artifact_root=campaign,
+            mapping_path=campaign / "workspace-map.json",
+            identity={"campaign": campaign.name, "family": "lifecycle"},
+        ) as lifecycle_workspace:
+            temporary_root = lifecycle_workspace.path
             source, bare = create_marketplace_remote(
                 repository=ROOT,
                 temporary_root=temporary_root,
@@ -867,10 +873,16 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted.", file=sys.stderr)
         raise SystemExit(130)
-    except (LifecycleError, OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+    except (
+        LifecycleError,
+        qualification_workspace.WorkspaceError,
+        OSError,
+        subprocess.SubprocessError,
+        json.JSONDecodeError,
+    ) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         raise SystemExit(1)

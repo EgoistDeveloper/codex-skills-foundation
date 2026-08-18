@@ -101,7 +101,17 @@ def create_fixture(seed: Path) -> None:
 
 
 def clone_fixture(seed: Path, destination: Path) -> None:
-    base.run_process(["git", "clone", "--quiet", str(seed), str(destination)])
+    base.run_process(
+        [
+            "git",
+            "-c",
+            "core.longpaths=true",
+            "clone",
+            "--quiet",
+            str(seed),
+            str(destination),
+        ]
+    )
     base.git(["config", "user.name", "Engineering Foundation Negative Smoke"], cwd=destination)
     base.git(["config", "user.email", "negative-smoke@example.invalid"], cwd=destination)
 
@@ -915,9 +925,14 @@ def main() -> int:
     campaign = base.campaign_directory(output_root)
     campaign_id = f"codex-core-negative-smoke-{campaign.name}"
 
-    seed = campaign / "seed"
-    baseline_workspace = campaign / "workspaces" / "baseline"
-    candidate_workspace = campaign / "workspaces" / "candidate"
+    workspace_lease = base.qualification_workspace.allocate_workspace(
+        artifact_root=campaign,
+        mapping_path=campaign / "workspace-map.json",
+        identity={"campaign": campaign.name, "family": "negative"},
+    )
+    seed = workspace_lease.child("s")
+    baseline_workspace = workspace_lease.child("b")
+    candidate_workspace = workspace_lease.child("c")
     baseline_dir = campaign / "baseline"
     candidate_dir = campaign / "candidate"
     preflight_dir = campaign / "preflight"
@@ -1315,9 +1330,10 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        sys.exit(base.qualification_workspace.run_with_cleanup(main))
     except (
         base.HarnessError,
+        base.qualification_workspace.WorkspaceError,
         OSError,
         subprocess.SubprocessError,
         json.JSONDecodeError,
