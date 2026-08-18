@@ -251,6 +251,25 @@ def parse_version(text: str) -> tuple[int, int, int]:
     return major, minor, patch
 
 
+def configured_codex_cli_path(config: dict[str, Any]) -> str | None:
+    """Read the desktop-injected CLI path from either supported TOML shape."""
+    direct = config.get("CODEX_CLI_PATH")
+    if isinstance(direct, str) and direct.strip():
+        return direct
+    policy = config.get("shell_environment_policy")
+    configured = policy.get("set") if isinstance(policy, dict) else None
+    nested = configured.get("CODEX_CLI_PATH") if isinstance(configured, dict) else None
+    if isinstance(nested, str) and nested.strip():
+        return nested
+    servers = config.get("mcp_servers")
+    node_repl = servers.get("node_repl") if isinstance(servers, dict) else None
+    environment = node_repl.get("env") if isinstance(node_repl, dict) else None
+    mcp_value = (
+        environment.get("CODEX_CLI_PATH") if isinstance(environment, dict) else None
+    )
+    return mcp_value if isinstance(mcp_value, str) and mcp_value.strip() else None
+
+
 def resolve_codex_launchers() -> CodexLaunchers:
     node = shutil.which("node.exe" if os.name == "nt" else "node")
     if not node:
@@ -266,9 +285,7 @@ def resolve_codex_launchers() -> CodexLaunchers:
                 config = tomllib.loads(config_path.read_text(encoding="utf-8"))
             except (OSError, tomllib.TOMLDecodeError) as exc:
                 raise HarnessError(f"could not parse Codex config for CLI identity: {exc}") from exc
-            configured_value = config.get("CODEX_CLI_PATH")
-            if isinstance(configured_value, str) and configured_value.strip():
-                configured_codex = configured_value
+            configured_codex = configured_codex_cli_path(config)
     codex_cmd = shutil.which("codex.cmd") if os.name == "nt" else None
     codex = configured_codex or codex_cmd or shutil.which("codex")
     if not codex:

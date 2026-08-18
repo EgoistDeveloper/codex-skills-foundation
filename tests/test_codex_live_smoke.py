@@ -24,6 +24,41 @@ class CodexLiveSmokeTests(unittest.TestCase):
         with self.assertRaises(module.HarnessError):
             module.parse_version("Codex unknown")
 
+    def test_desktop_cli_path_supports_nested_config_shapes(self) -> None:
+        self.assertEqual(
+            module.configured_codex_cli_path(
+                {
+                    "shell_environment_policy": {
+                        "set": {"CODEX_CLI_PATH": "C:/private/codex.exe"}
+                    }
+                }
+            ),
+            "C:/private/codex.exe",
+        )
+        self.assertEqual(
+            module.configured_codex_cli_path(
+                {
+                    "CODEX_CLI_PATH": "C:/direct/codex.exe",
+                    "shell_environment_policy": {
+                        "set": {"CODEX_CLI_PATH": "C:/nested/codex.exe"}
+                    },
+                }
+            ),
+            "C:/direct/codex.exe",
+        )
+        self.assertEqual(
+            module.configured_codex_cli_path(
+                {
+                    "mcp_servers": {
+                        "node_repl": {
+                            "env": {"CODEX_CLI_PATH": "C:/mcp/codex.exe"}
+                        }
+                    }
+                }
+            ),
+            "C:/mcp/codex.exe",
+        )
+
     def test_live_prompt_requires_pre_edit_reproduction(self) -> None:
         self.assertIn("İlk üretim kodu değişikliğinden önce", module.LIVE_PROMPT)
         self.assertIn(module.TEST_COMMAND, module.LIVE_PROMPT)
