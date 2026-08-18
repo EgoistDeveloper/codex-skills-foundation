@@ -235,9 +235,47 @@ def validate_artifact_paths(
     }
 
 
-def _write_mapping(path: Path, payload: dict[str, Any]) -> None:
+def _prepare_mapping_path(path: Path, artifact_root: Path) -> tuple[Path, Path]:
+    artifact = Path(os.path.abspath(artifact_root))
+    mapping = Path(os.path.abspath(path))
+    _relative_to(mapping, artifact, label="workspace mapping")
+    reject_linked_components(artifact, label="workspace mapping artifact root")
+    reject_linked_components(mapping.parent, label="workspace mapping parent")
+    mapping.parent.mkdir(parents=True, exist_ok=True)
+    reject_linked_components(mapping.parent, label="workspace mapping parent")
+    resolved_artifact = artifact.resolve(strict=True)
+    resolved_parent = mapping.parent.resolve(strict=True)
+    try:
+        resolved_parent.relative_to(resolved_artifact)
+    except ValueError as exc:
+        raise WorkspacePathError(
+            "workspace mapping parent resolves outside the artifact root",
+            label="workspace_mapping_containment",
+        ) from exc
+    if mapping.exists() or mapping.is_symlink():
+        metadata = mapping.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or _is_reparse(metadata):
+            raise WorkspacePathError(
+                "workspace mapping is a symlink, junction, or reparse point",
+                label="workspace_mapping",
+            )
+        if not stat.S_ISREG(metadata.st_mode):
+            raise WorkspacePathError(
+                "workspace mapping is not a regular file",
+                label="workspace_mapping",
+            )
+    return mapping, resolved_artifact
+
+
+def _write_mapping(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    artifact_root: Path,
+) -> None:
+    mapping, resolved_artifact = _prepare_mapping_path(path, artifact_root)
     atomic_write_utf8(
-        path,
+        mapping,
         json.dumps(
             payload,
             ensure_ascii=True,
@@ -246,6 +284,21 @@ def _write_mapping(path: Path, payload: dict[str, Any]) -> None:
         )
         + "\n",
     )
+    reject_linked_components(mapping.parent, label="workspace mapping parent")
+    resolved = mapping.resolve(strict=True)
+    try:
+        resolved.relative_to(resolved_artifact)
+    except ValueError as exc:
+        raise WorkspacePathError(
+            "workspace mapping resolved outside the artifact root after publication",
+            label="workspace_mapping_containment",
+        ) from exc
+    metadata = mapping.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode) or _is_reparse(metadata):
+        raise WorkspacePathError(
+            "workspace mapping publication is not a regular unlinked file",
+            label="workspace_mapping",
+        )
 
 
 def _remove_readonly_entry(
@@ -328,12 +381,20 @@ class WorkspaceLease:
                     time.sleep(delay_seconds)
         if last_error is not None or self.path.exists():
             message = str(last_error or "workspace still exists after cleanup")
-            _write_mapping(self.mapping_path, self.mapping("ERROR", message))
+            _write_mapping(
+                self.mapping_path,
+                self.mapping("ERROR", message),
+                artifact_root=self.artifact_root,
+            )
             raise WorkspaceError(
                 f"qualification workspace cleanup failed for {self.workspace_id}: {message}"
             )
         self.cleaned = True
-        _write_mapping(self.mapping_path, self.mapping("CLEANED"))
+        _write_mapping(
+            self.mapping_path,
+            self.mapping("CLEANED"),
+            artifact_root=self.artifact_root,
+        )
         if self in _REGISTERED:
             _REGISTERED.remove(self)
 
@@ -375,7 +436,7 @@ def allocate_workspace(
     reject_linked_components(artifact, label="workspace mapping artifact root")
     mapping = mapping_path or artifact / f"workspace-{identifier}.json"
     mapping = Path(os.path.abspath(mapping))
-    _relative_to(mapping, artifact, label="workspace mapping")
+    mapping, _ = _prepare_mapping_path(mapping, artifact)
     if mapping.exists() or mapping.is_symlink():
         raise WorkspacePathError(
             "qualification workspace mapping already exists",
@@ -391,7 +452,11 @@ def allocate_workspace(
         budget=budget,
     )
     try:
-        _write_mapping(mapping, lease.mapping("ACTIVE"))
+        _write_mapping(
+            mapping,
+            lease.mapping("ACTIVE"),
+            artifact_root=artifact,
+        )
     except BaseException:
         shutil.rmtree(path, ignore_errors=True)
         raise

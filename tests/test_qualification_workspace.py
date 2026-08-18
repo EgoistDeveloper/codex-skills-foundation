@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_MODULE = ROOT / "scripts" / "qualification_workspace.py"
 QUALIFICATION_SCRIPT = ROOT / "scripts" / "run_exact_artifact_qualification.py"
+VALIDATION_WORKFLOW = ROOT / ".github" / "workflows" / "validate.yml"
 WINDOWS_CLASSIC_LIMIT = 260
 SCRIPT_DIR = ROOT / "scripts"
 if str(SCRIPT_DIR) not in sys.path:
@@ -262,6 +263,56 @@ class QualificationWorkspaceTests(unittest.TestCase):
                 )
             self.assertEqual(list(target.iterdir()), [])
 
+    def test_nested_symlink_mapping_parent_cannot_escape_artifact_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "artifacts"
+            outside = root / "outside"
+            artifact.mkdir()
+            outside.mkdir()
+            linked_parent = artifact / "maps"
+            try:
+                linked_parent.symlink_to(outside, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"directory symlink unavailable: {exc}")
+            with self.assertRaisesRegex(workspace.WorkspacePathError, "symlink"):
+                workspace.allocate_workspace(
+                    disposable_root=root / "d",
+                    artifact_root=artifact,
+                    mapping_path=linked_parent / "map.json",
+                    identity={"campaign": "campaign", "family": "positive"},
+                )
+            self.assertFalse((outside / "map.json").exists())
+
+    @unittest.skipUnless(os.name == "nt", "real directory junction exists on Windows")
+    def test_real_windows_junction_mapping_parent_cannot_escape_artifact_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            artifact = root / "artifacts"
+            outside = root / "outside"
+            artifact.mkdir()
+            outside.mkdir()
+            junction = artifact / "maps"
+            result = subprocess.run(
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(junction), str(outside)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                self.skipTest(f"directory junction unavailable: {result.stderr}")
+            try:
+                with self.assertRaisesRegex(workspace.WorkspacePathError, "reparse"):
+                    workspace.allocate_workspace(
+                        disposable_root=root / "d",
+                        artifact_root=artifact,
+                        mapping_path=junction / "map.json",
+                        identity={"campaign": "campaign", "family": "positive"},
+                    )
+                self.assertFalse((outside / "map.json").exists())
+            finally:
+                os.rmdir(junction)
+
     def test_real_git_init_add_commit_succeeds_under_allocator(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -388,6 +439,11 @@ class QualificationWorkspaceTests(unittest.TestCase):
         for name in entries:
             source = (SCRIPT_DIR / name).read_text(encoding="utf-8")
             self.assertIn("qualification_workspace", source, name)
+
+    def test_zero_model_ci_uses_the_qualified_supported_codex_client(self) -> None:
+        workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("@openai/codex@0.148.0-alpha.15", workflow)
+        self.assertNotIn("@openai/codex@0.146.0", workflow)
 
 
 if __name__ == "__main__":
