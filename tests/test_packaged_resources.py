@@ -173,6 +173,138 @@ class PackagedResourceTests(unittest.TestCase):
             with self.subTest(body=body):
                 self.assert_source_error(body, "missing_resource")
 
+    def test_angle_destinations_with_spaces_are_source_declarations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin_root, _, _ = write_fixture_plugin(
+                Path(tmp) / "repository",
+                (
+                    "[helper](<scripts/my tool.py>)\n"
+                    "[guide](<references/my guide.md>)\n"
+                    "![diagram](<assets/system diagram.png>)\n"
+                ),
+                resources={
+                    "scripts/my tool.py": "# helper\n",
+                    "references/my guide.md": "# Guide\n",
+                    "assets/system diagram.png": b"harmless-image-fixture",
+                },
+            )
+
+            references = source_references(plugin_root)
+
+            self.assertEqual(
+                [reference.resource_path for reference in references],
+                [
+                    "scripts/my tool.py",
+                    "references/my guide.md",
+                    "assets/system diagram.png",
+                ],
+            )
+
+    def test_missing_angle_destinations_with_spaces_fail_source_closure(self) -> None:
+        for body in (
+            "[helper](<scripts/missing tool.py>)\n",
+            "[guide](<references/missing guide.md>)\n",
+            "![diagram](<assets/missing diagram.png>)\n",
+        ):
+            with self.subTest(body=body):
+                self.assert_source_error(body, "missing_resource")
+
+    def test_inline_code_with_spaces_remains_non_declarative(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin_root, _, _ = write_fixture_plugin(
+                Path(tmp) / "repository",
+                (
+                    "Run `python scripts/missing tool.py --check`. "
+                    "The prose `references/missing guide.md is optional` is illustrative.\n"
+                ),
+            )
+
+            self.assertEqual(source_references(plugin_root), [])
+
+    def test_package_and_zip_closure_preserve_spaced_resource_members(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "repository"
+            plugin_root, _, plugin = write_fixture_plugin(
+                repository,
+                (
+                    "[helper](<scripts/my tool.py>)\n"
+                    "[guide](<references/my guide.md>)\n"
+                    "![diagram](<assets/system diagram.png>)\n"
+                ),
+                resources={
+                    "scripts/my tool.py": "# helper\n",
+                    "references/my guide.md": "# Guide\n",
+                    "assets/system diagram.png": b"harmless-image-fixture",
+                },
+            )
+            output = repository / "dist"
+            output.mkdir(parents=True)
+            original_root = package_plugins.ROOT
+            package_plugins.ROOT = repository
+            try:
+                archive_path, _ = package_plugins.build_archive(plugin, output)
+            finally:
+                package_plugins.ROOT = original_root
+
+            with zipfile.ZipFile(archive_path) as archive:
+                names = archive.namelist()
+                validated = packaged_resources.validate_zip_closure(
+                    plugin_root,
+                    "fixture-plugin",
+                    archive,
+                    repository_root=repository,
+                )
+            self.assertEqual(len(validated), 3)
+            self.assertIn("skills/example-skill/scripts/my tool.py", names)
+            self.assertIn("skills/example-skill/references/my guide.md", names)
+            self.assertIn("skills/example-skill/assets/system diagram.png", names)
+
+    def test_spaced_resource_source_case_mismatch_fails_on_windows_too(self) -> None:
+        cases = (
+            (
+                "[helper](<scripts/My Tool.py>)\n",
+                {"scripts/my tool.py": "# helper\n"},
+            ),
+            (
+                "[guide](<references/My Guide.md>)\n",
+                {"references/my guide.md": "# Guide\n"},
+            ),
+            (
+                "![diagram](<assets/System Diagram.png>)\n",
+                {"assets/system diagram.png": b"harmless-image-fixture"},
+            ),
+        )
+        for body, resources in cases:
+            with self.subTest(body=body):
+                self.assert_source_error(body, "case_mismatch", resources=resources)
+
+    def test_spaced_resource_zip_case_mismatch_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin_root, skill_root, _ = write_fixture_plugin(
+                Path(tmp) / "repository",
+                "[helper](<scripts/my tool.py>)\n",
+                resources={"scripts/my tool.py": "# helper\n"},
+            )
+            references = source_references(plugin_root)
+            payload, archive = zip_from_members(
+                [
+                    ("skills/example-skill/SKILL.md", (skill_root / "SKILL.md").read_bytes()),
+                    ("skills/example-skill/scripts/My Tool.py", b"wrong case"),
+                ]
+            )
+            try:
+                with self.assertRaises(packaged_resources.ResourceClosureError) as raised:
+                    packaged_resources.validate_zip_closure(
+                        plugin_root,
+                        "fixture-plugin",
+                        archive,
+                        references=references,
+                    )
+                self.assertEqual(raised.exception.finding.code, "zip_case_mismatch")
+            finally:
+                archive.close()
+                payload.close()
+
     def test_valid_standalone_inline_code_resource(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             plugin_root, _, _ = write_fixture_plugin(

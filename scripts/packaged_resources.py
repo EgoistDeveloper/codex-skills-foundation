@@ -28,6 +28,7 @@ class MarkdownToken:
     raw: str
     line: int
     column: int
+    angle_destination: bool = False
 
 
 @dataclass(frozen=True)
@@ -278,7 +279,10 @@ def _markdown_link_tokens(text: str) -> list[MarkdownToken]:
 
         destination_end = destination_start
         closing = destination_start
-        if destination_start < len(text) and text[destination_start] == "<":
+        angle_destination = (
+            destination_start < len(text) and text[destination_start] == "<"
+        )
+        if angle_destination:
             destination_start += 1
             destination_end = destination_start
             while destination_end < len(text):
@@ -342,7 +346,15 @@ def _markdown_link_tokens(text: str) -> list[MarkdownToken]:
         raw = text[destination_start:destination_end]
         line, column = _location(text, index)
         surface = "markdown_image" if index > 0 and text[index - 1] == "!" else "markdown_link"
-        tokens.append(MarkdownToken(surface, raw, line, column))
+        tokens.append(
+            MarkdownToken(
+                surface,
+                raw,
+                line,
+                column,
+                angle_destination=angle_destination,
+            )
+        )
         index = closing + 1
     return tokens
 
@@ -357,7 +369,9 @@ def markdown_tokens(text: str) -> list[MarkdownToken]:
     )
 
 
-def _looks_like_resource(raw: str, *, surface: str) -> bool:
+def _looks_like_resource(
+    raw: str, *, surface: str, angle_destination: bool
+) -> bool:
     candidate = raw.strip()
     if not candidate or candidate.startswith("#"):
         return False
@@ -380,7 +394,12 @@ def _looks_like_resource(raw: str, *, surface: str) -> bool:
             and (not after_question or "." in after_question)
         ):
             return False
-    if any(character.isspace() and ord(character) >= 32 for character in candidate):
+    has_literal_space = any(
+        character.isspace() and ord(character) >= 32 for character in candidate
+    )
+    if has_literal_space and not (
+        angle_destination and surface in {"markdown_link", "markdown_image"}
+    ):
         return False
     without_fragment = candidate.split("#", 1)[0]
     without_query = without_fragment.split("?", 1)[0]
@@ -402,7 +421,11 @@ def _normalize_token(
     document: Path,
 ) -> ResourceReference | None:
     raw = token.raw.strip()
-    if not _looks_like_resource(raw, surface=token.surface):
+    if not _looks_like_resource(
+        raw,
+        surface=token.surface,
+        angle_destination=token.angle_destination,
+    ):
         return None
 
     def invalid(code: str, message: str) -> None:
