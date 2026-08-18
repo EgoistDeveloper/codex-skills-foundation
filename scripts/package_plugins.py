@@ -8,22 +8,15 @@ import json
 import os
 import stat
 import sys
+import tempfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog/plugins.json"
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
 FIXED_FILE_MODE = stat.S_IFREG | 0o644
 WINDOWS_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def is_reparse_point(metadata: os.stat_result) -> bool:
@@ -63,24 +56,252 @@ def require_contained(path: Path, root: Path, *, label: str) -> Path:
 
 
 def validate_relative_path(relative: Path) -> None:
-    if relative.is_absolute() or relative.drive or ".." in relative.parts:
+    windows_path = PureWindowsPath(relative.as_posix())
+    if (
+        relative.is_absolute()
+        or relative.drive
+        or ".." in relative.parts
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or ".." in windows_path.parts
+        or any("\\" in part for part in relative.parts)
+    ):
         raise ValueError(f"unsafe release path: {relative}")
 
 
+def validate_existing_path_components(path: Path) -> None:
+    """Reject links, reparse points, and non-directories in an output path."""
+    if not path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"unsafe release output path: {path}")
+
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise ValueError(f"cannot inspect release output path {current}: {exc}") from exc
+        reject_link_or_reparse(current, metadata)
+        if current != path and not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError(f"release output path component is not a directory: {current}")
+
+
+def validate_output_directory(output: Path) -> Path:
+    validate_existing_path_components(output)
+    metadata = inspect_path(output)
+    reject_link_or_reparse(output, metadata)
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"release output is not a directory: {output}")
+    return resolve_strict(output)
+
+
+def prepare_output_directory(requested: Path) -> Path:
+    resolved_repository = validate_repository_root(ROOT)
+    if requested.is_absolute():
+        output = requested
+    else:
+        validate_relative_path(requested)
+        output = ROOT / requested
+
+    try:
+        relative = output.relative_to(ROOT)
+    except ValueError as exc:
+        raise ValueError(f"release output {output} is outside repository root {ROOT}") from exc
+    validate_relative_path(relative)
+    if not relative.parts:
+        raise ValueError("release output must be a subdirectory of the repository root")
+
+    # Check existing ancestors before mkdir so a nested junction cannot redirect creation.
+    validate_existing_path_components(output)
+    try:
+        output.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ValueError(f"cannot create release output directory {output}: {exc}") from exc
+    resolved_output = validate_output_directory(output)
+    require_contained(resolved_output, resolved_repository, label="release output")
+    return resolved_output
+
+
+def validate_output_filename(filename: str) -> None:
+    candidate = Path(filename)
+    if (
+        not filename
+        or "/" in filename
+        or "\\" in filename
+        or candidate.is_absolute()
+        or candidate.drive
+        or len(candidate.parts) != 1
+        or filename in {".", ".."}
+    ):
+        raise ValueError(f"unsafe release archive filename: {filename}")
+
+
+def archive_filename(plugin: dict) -> str:
+    name = plugin.get("name")
+    version = plugin.get("version")
+    if not isinstance(name, str) or not name:
+        raise ValueError("release plugin name must be a non-empty string")
+    if not isinstance(version, str) or not version:
+        raise ValueError(f"release plugin version must be a non-empty string: {name}")
+    filename = f"{name}-{version}.zip"
+    validate_output_filename(filename)
+    return filename
+
+
+def validate_release_plugins(catalog: object) -> list[dict]:
+    if not isinstance(catalog, dict):
+        raise ValueError("release catalog root must be an object")
+    plugins = catalog.get("plugins")
+    if not isinstance(plugins, list) or not plugins:
+        raise ValueError("release catalog plugins must be a non-empty array")
+
+    destinations: set[str] = set()
+    for index, plugin in enumerate(plugins):
+        if not isinstance(plugin, dict):
+            raise ValueError(f"release catalog plugin {index} must be an object")
+        plugin_path = plugin.get("path")
+        if not isinstance(plugin_path, str) or not plugin_path:
+            raise ValueError(f"release catalog plugin {index} path must be a non-empty string")
+        validate_relative_path(Path(plugin_path))
+        filename = archive_filename(plugin)
+        if filename in destinations:
+            raise ValueError(f"duplicate release archive destination: {filename}")
+        destinations.add(filename)
+    return plugins
+
+
+def validate_output_destination(path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise ValueError(f"cannot inspect release output file {path}: {exc}") from exc
+    reject_link_or_reparse(path, metadata)
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"release output path is not a regular file: {path}")
+
+
+def commit_temporary_output(
+    temporary: Path, destination: Path, created: os.stat_result
+) -> None:
+    metadata = inspect_path(temporary)
+    reject_link_or_reparse(temporary, metadata)
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"temporary release output is not a regular file: {temporary}")
+    if (metadata.st_dev, metadata.st_ino) != (created.st_dev, created.st_ino):
+        raise ValueError(f"temporary release output changed before publication: {temporary}")
+    validate_output_destination(destination)
+    try:
+        os.replace(temporary, destination)
+    except OSError as exc:
+        raise ValueError(f"cannot publish release output {destination}: {exc}") from exc
+
+
+def write_atomic_output(output: Path, filename: str, data: bytes) -> Path:
+    resolved_output = validate_output_directory(output)
+    validate_output_filename(filename)
+    destination = resolved_output / filename
+    validate_output_destination(destination)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=resolved_output, prefix=f".{filename}.", suffix=".tmp"
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            created = os.fstat(handle.fileno())
+            handle.write(data)
+            handle.flush()
+        commit_temporary_output(temporary, destination, created)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    return destination
+
+
+def remove_existing_release_outputs(output: Path) -> None:
+    try:
+        with os.scandir(output) as entries:
+            candidates = sorted(
+                (
+                    entry
+                    for entry in entries
+                    if entry.name.endswith(".zip") or entry.name == "SHA256SUMS"
+                ),
+                key=lambda entry: entry.name,
+            )
+    except OSError as exc:
+        raise ValueError(f"cannot scan release output directory {output}: {exc}") from exc
+
+    for entry in candidates:
+        path = output / entry.name
+        try:
+            metadata = entry.stat(follow_symlinks=False)
+        except OSError as exc:
+            raise ValueError(f"cannot inspect release output file {path}: {exc}") from exc
+        reject_link_or_reparse(path, metadata)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError(f"release output path is not a regular file: {path}")
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise ValueError(f"cannot remove previous release output {path}: {exc}") from exc
+
+
+def remove_generated_outputs(paths: list[Path]) -> list[str]:
+    errors: list[str] = []
+    for path in paths:
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            errors.append(f"cannot inspect generated release output {path}: {exc}")
+            continue
+
+        try:
+            reject_link_or_reparse(path, metadata)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError(f"generated release output is not a regular file: {path}")
+            path.unlink()
+        except (OSError, ValueError) as exc:
+            errors.append(str(exc))
+    return errors
+
+
 def validate_repository_root(repository_root: Path) -> Path:
-    resolved = resolve_strict(repository_root)
-    metadata = inspect_path(resolved)
+    metadata = inspect_path(repository_root)
+    reject_link_or_reparse(repository_root, metadata)
     if not stat.S_ISDIR(metadata.st_mode):
         raise ValueError(f"release repository root is not a directory: {repository_root}")
+    resolved = resolve_strict(repository_root)
     return resolved
 
 
 def validate_plugin_root(plugin_root: Path, repository_root: Path) -> Path:
     resolved_repository = validate_repository_root(repository_root)
-    metadata = inspect_path(plugin_root)
-    reject_link_or_reparse(plugin_root, metadata)
-    if not stat.S_ISDIR(metadata.st_mode):
-        raise ValueError(f"release plugin root is not a directory: {plugin_root}")
+    try:
+        relative = plugin_root.relative_to(repository_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"release plugin root {plugin_root} is outside repository root {repository_root}"
+        ) from exc
+    validate_relative_path(relative)
+    if not relative.parts:
+        raise ValueError(f"release plugin root names the repository root: {plugin_root}")
+
+    current = repository_root
+    for part in relative.parts:
+        current /= part
+        metadata = inspect_path(current)
+        reject_link_or_reparse(current, metadata)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError(f"release plugin path component is not a directory: {current}")
+
     resolved_plugin = resolve_strict(plugin_root)
     require_contained(resolved_plugin, resolved_repository, label="release plugin root")
     return resolved_plugin
@@ -194,7 +415,10 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
     plugin_path = Path(plugin["path"])
     validate_relative_path(plugin_path)
     plugin_root = ROOT / plugin_path
-    archive = output / f"{plugin['name']}-{plugin['version']}.zip"
+    resolved_output = validate_output_directory(output)
+    archive_name = archive_filename(plugin)
+    archive = resolved_output / archive_name
+    validate_output_destination(archive)
     files = safe_files(plugin_root, repository_root=ROOT)
     required = {
         Path("plugin.json"),
@@ -208,51 +432,75 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
     if not any(path.parts[:1] == ("skills",) and path.name == "SKILL.md" for path in relative_files):
         raise ValueError(f"{plugin['name']} has no packaged skill")
 
-    # The packages are tiny. Store entries without DEFLATE so archive bytes do not depend on
-    # platform-specific zlib builds or Python patch releases.
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as zf:
-        for path in files:
-            relative = path.relative_to(plugin_root).as_posix()
-            info = zipfile.ZipInfo(relative, FIXED_TIME)
-            # Plugin packages contain data/configuration files, not directly executed programs.
-            # Pin Unix metadata instead of using os.access(), whose X_OK behavior differs on Windows.
-            info.create_system = 3
-            info.external_attr = FIXED_FILE_MODE << 16
-            info.compress_type = zipfile.ZIP_STORED
-            zf.writestr(info, read_verified_file(path, plugin_root, ROOT))
-    return archive, sha256(archive)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=resolved_output, prefix=f".{archive_name}.", suffix=".tmp"
+    )
+    temporary = Path(temporary_name)
+    try:
+        # The packages are tiny. Store entries without DEFLATE so archive bytes do not depend on
+        # platform-specific zlib builds or Python patch releases.
+        with os.fdopen(descriptor, "w+b") as handle:
+            created = os.fstat(handle.fileno())
+            with zipfile.ZipFile(handle, "w", compression=zipfile.ZIP_STORED) as zf:
+                for path in files:
+                    relative = path.relative_to(plugin_root).as_posix()
+                    info = zipfile.ZipInfo(relative, FIXED_TIME)
+                    # Plugin packages contain data/configuration files, not directly executed
+                    # programs. Pin Unix metadata instead of using os.access(), whose X_OK
+                    # behavior differs on Windows.
+                    info.create_system = 3
+                    info.external_attr = FIXED_FILE_MODE << 16
+                    info.compress_type = zipfile.ZIP_STORED
+                    zf.writestr(info, read_verified_file(path, plugin_root, ROOT))
+            handle.flush()
+            handle.seek(0)
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+
+        commit_temporary_output(temporary, archive, created)
+        return archive, digest.hexdigest()
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, default=ROOT / "dist")
+    parser.add_argument("--output", type=Path, default=Path("dist"))
     parser.add_argument("--check", action="store_true", help="Build twice and require byte-identical output.")
     args = parser.parse_args()
-    output = args.output if args.output.is_absolute() else ROOT / args.output
-    output.mkdir(parents=True, exist_ok=True)
-    for old in output.glob("*.zip"):
-        old.unlink()
-    checksum_path = output / "SHA256SUMS"
-    if checksum_path.exists():
-        checksum_path.unlink()
-
-    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
     built: list[tuple[Path, str]] = []
+    checksum_path: Path | None = None
     try:
-        for plugin in catalog["plugins"]:
+        output = prepare_output_directory(args.output)
+        catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+        plugins = validate_release_plugins(catalog)
+        remove_existing_release_outputs(output)
+        for plugin in plugins:
             built.append(build_archive(plugin, output))
-        checksum_path.write_bytes(
+        checksum_path = write_atomic_output(
+            output,
+            "SHA256SUMS",
             "".join(f"{digest}  {path.name}\n" for path, digest in built).encode("utf-8")
         )
         if args.check:
             first = {path.name: path.read_bytes() for path, _ in built}
-            for plugin in catalog["plugins"]:
+            for plugin in plugins:
                 build_archive(plugin, output)
             for path, _ in built:
                 if path.read_bytes() != first[path.name]:
                     raise ValueError(f"non-deterministic archive: {path.name}")
-    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        generated = [path for path, _ in built]
+        if checksum_path is not None:
+            generated.append(checksum_path)
+        cleanup_errors = remove_generated_outputs(generated)
         print(f"ERROR: {exc}")
+        for cleanup_error in cleanup_errors:
+            print(f"ERROR: failed to clean generated output: {cleanup_error}")
         return 1
 
     for path, digest in built:
