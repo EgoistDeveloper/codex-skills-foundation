@@ -25,4 +25,12 @@ Match every acceptance ID to current evidence.
 
 For command evidence record the exact command, `fresh: true`, integer exit code, concise result, and artifact path when useful. A passing linter cannot stand in for compilation or runtime behavior; another agent's confidence cannot stand in for a command.
 
-`COMPLETE` requires exact acceptance coverage, all required IDs `PASS`, no unresolved required `FAIL`/`NOT_RUN`, a reviewed working tree, no unrelated diff, and honest remaining-risk disclosure. Validate a durable packet with `scripts/evidence_gate.py` and its task contract. The gate checks structure and disclosure; it cannot prove a claimed command actually ran.
+`COMPLETE` requires exact acceptance coverage, all required IDs `PASS`, no unresolved required `FAIL`/`NOT_RUN`, a reviewed working tree, no unrelated diff, and honest remaining-risk disclosure.
+
+Validate a durable packet with the packaged [scripts/evidence_gate.py](scripts/evidence_gate.py), resolving that path relative to this `SKILL.md` directory rather than the consumer repository:
+
+```text
+python <verify-before-completion-skill-directory>/scripts/evidence_gate.py completion-evidence.json --contract task-contract.json --workspace-root .
+```
+
+The helper is self-contained in the installed Core package and uses only the Python standard library. It checks structure and disclosure; it cannot prove a claimed command actually ran.

@@ -27,7 +27,7 @@ class PublicBetaLifecycleTests(unittest.TestCase):
             versions["engineering-foundation-core"],
             module.RELEASE_VERSION,
         )
-        self.assertEqual(module.RELEASE_VERSION, "0.3.0-beta.1")
+        self.assertEqual(module.RELEASE_VERSION, "0.3.0-beta.2")
         self.assertEqual(module.PREVIOUS_CORE_VERSION, "0.2.2")
         self.assertRegex(module.PREVIOUS_MARKETPLACE_COMMIT, r"^[0-9a-f]{40}$")
 
@@ -38,7 +38,7 @@ class PublicBetaLifecycleTests(unittest.TestCase):
             {
                 "engineering-foundation-authoring": "0.2.1",
                 "engineering-foundation-cloud": "0.2.1",
-                "engineering-foundation-core": "0.3.0-beta.1",
+                "engineering-foundation-core": "0.3.0-beta.2",
                 "engineering-foundation-design": "0.2.1",
                 "engineering-foundation-laravel": "0.2.1",
             },

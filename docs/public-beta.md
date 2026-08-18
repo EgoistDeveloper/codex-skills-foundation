@@ -107,4 +107,4 @@ The final release-candidate lifecycle uses an isolated `CODEX_HOME`, a loopback-
 python scripts/run_public_beta_lifecycle.py
 ```
 
-It installs Core `0.2.2`, advances the temporary marketplace to `0.3.0-beta.1`, upgrades/reinstalls Core, installs all optional packages, verifies namespaced skill discovery, removes every package, removes the marketplace, and checks that no lifecycle state remains in the disposable config. End users do not run this harness.
+At the published `v0.3.0-beta.1` tag, it installs Core `0.2.2`, advances the temporary marketplace to `0.3.0-beta.1`, upgrades/reinstalls Core, installs all optional packages, verifies namespaced skill discovery, removes every package, removes the marketplace, and checks that no lifecycle state remains in the disposable config. On `main`, the harness follows the catalog's current unreleased Core candidate; that source identity is not a published release. End users do not run this harness.

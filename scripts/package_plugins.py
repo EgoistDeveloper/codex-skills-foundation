@@ -17,6 +17,11 @@ CATALOG = ROOT / "catalog/plugins.json"
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
 FIXED_FILE_MODE = stat.S_IFREG | 0o644
 WINDOWS_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
+REQUIRED_PLUGIN_FILES = {
+    "engineering-foundation-core": {
+        Path("skills/verify-before-completion/scripts/evidence_gate.py"),
+    },
+}
 
 
 def is_reparse_point(metadata: os.stat_result) -> bool:
@@ -425,7 +430,18 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
         Path(".codex-plugin/plugin.json"),
         Path(".claude-plugin/plugin.json"),
     }
+    required.update(REQUIRED_PLUGIN_FILES.get(plugin["name"], set()))
     relative_files = {path.relative_to(plugin_root) for path in files}
+    generated_python_cache = {
+        path
+        for path in relative_files
+        if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}
+    }
+    if generated_python_cache:
+        raise ValueError(
+            f"{plugin['name']} contains generated Python cache files: "
+            f"{sorted(map(str, generated_python_cache))}"
+        )
     missing = required - relative_files
     if missing:
         raise ValueError(f"{plugin['name']} missing package files: {sorted(map(str, missing))}")
