@@ -22,6 +22,10 @@ if str(SCRIPT_DIR) not in sys.path:
 import release_candidate
 import run_codex_live_smoke as live_base
 import run_codex_core_repeatability as repeat_entry
+from console_output import (
+    write_console_safe,
+    write_transcript_bundle,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / ".eval-runs" / "exact-artifact-qualification"
@@ -47,9 +51,6 @@ def run_process(
         "env": env,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
-        "text": True,
-        "encoding": "utf-8",
-        "errors": "replace",
     }
     if os.name == "nt":
         popen_kwargs["creationflags"] = getattr(
@@ -78,15 +79,19 @@ def run_process(
             except subprocess.TimeoutExpired:
                 process.kill()
                 stdout, stderr = process.communicate()
-    transcript.parent.mkdir(parents=True, exist_ok=True)
-    transcript.write_text(
-        "$ " + " ".join(command) + "\n\n" + stdout + stderr,
-        encoding="utf-8",
-        newline="\n",
+    stdout_bytes = bytes(stdout)
+    stderr_bytes = bytes(stderr)
+    stdout_text = stdout_bytes.decode("utf-8", errors="replace")
+    stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+    write_transcript_bundle(
+        transcript,
+        "$ " + " ".join(command) + "\n\n" + stdout_text + stderr_text,
+        stdout_bytes,
+        stderr_bytes,
     )
-    print(stdout, end="")
-    if stderr:
-        print(stderr, end="", file=sys.stderr)
+    write_console_safe(sys.stdout, stdout_text)
+    if stderr_text:
+        write_console_safe(sys.stderr, stderr_text)
     if timed_out:
         raise QualificationError(
             f"exact-artifact command timed out after {timeout} seconds: "
@@ -592,12 +597,13 @@ if __name__ == "__main__":
         subprocess.SubprocessError,
         json.JSONDecodeError,
     ) as exc:
-        print(
+        write_console_safe(
+            sys.stderr,
             json.dumps(
                 release_candidate.failure_payload("exact-artifact-qualification", exc),
                 ensure_ascii=False,
                 separators=(",", ":"),
-            ),
-            file=sys.stderr,
+            )
+            + "\n",
         )
         raise SystemExit(1)
