@@ -23,7 +23,7 @@
     "intended_release_tag": {"type": "string", "minLength": 1},
     "release_version": {"type": "string", "minLength": 1},
     "candidate_state": {"const": "UNRELEASED"},
-    "creation_contract": {"const": "b02-h04-v1"},
+    "creation_contract": {"const": "b02-h04r-v1"},
     "catalog_sha256": {"$ref": "#/$defs/sha256"},
     "marketplace_identity": {
       "type": "object",
@@ -49,7 +49,8 @@
           "skill_count",
           "content_sha256",
           "plugin_manifest_sha256",
-          "provider_manifest_sha256"
+          "provider_manifest_sha256",
+          "verifier_runner_sha256"
         ],
         "properties": {
           "name": {"type": "string", "minLength": 1},
@@ -68,6 +69,12 @@
               "codex": {"$ref": "#/$defs/sha256"},
               "claude": {"$ref": "#/$defs/sha256"}
             }
+          },
+          "verifier_runner_sha256": {
+            "oneOf": [
+              {"$ref": "#/$defs/sha256"},
+              {"type": "null"}
+            ]
           }
         }
       }

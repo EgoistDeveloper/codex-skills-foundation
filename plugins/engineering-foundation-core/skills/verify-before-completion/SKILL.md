@@ -25,6 +25,10 @@ Match every acceptance ID to current evidence.
 
 For command evidence record the exact command, `fresh: true`, integer exit code, concise result, and artifact path when useful. A passing linter cannot stand in for compilation or runtime behavior; another agent's confidence cannot stand in for a command.
 
+When the task harness requires exact verifier-command evidence, use the packaged [scripts/run_verifier_with_receipt.py](scripts/run_verifier_with_receipt.py) helper and the exact invocation supplied by that harness. Resolve the helper relative to this `SKILL.md` directory. Preserve the supplied run ID, command ID, candidate-manifest digest, campaign ID, turn binding, run root, output directory, working directory, executable, and verifier argv exactly.
+
+The helper's process exit code reports whether it produced trustworthy evidence; the receipt's `child.exit_code` is the verifier result. Record the receipt run ID, command ID, payload SHA-256, and exact child exit code in the command evidence. Do not infer the verifier result from outer PowerShell normalization, rewrite the receipt, or claim `COMPLETE` while a required verifier remains blocked.
+
 `COMPLETE` requires exact acceptance coverage, all required IDs `PASS`, no unresolved required `FAIL`/`NOT_RUN`, a reviewed working tree, no unrelated diff, and honest remaining-risk disclosure.
 
 Validate a durable packet with the packaged [scripts/evidence_gate.py](scripts/evidence_gate.py), resolving that path relative to this `SKILL.md` directory rather than the consumer repository:

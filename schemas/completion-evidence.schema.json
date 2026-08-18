@@ -114,6 +114,33 @@
                 "artifact_path": {
                   "type": "string",
                   "minLength": 1
+                },
+                "receipt": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "run_id",
+                    "command_id",
+                    "payload_sha256",
+                    "child_exit_code"
+                  ],
+                  "properties": {
+                    "run_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "command_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "payload_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "child_exit_code": {
+                      "type": "integer"
+                    }
+                  }
                 }
               },
               "allOf": [

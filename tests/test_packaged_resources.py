@@ -37,7 +37,7 @@ validate_repository = load_script(
 )
 
 EXPECTED_DIGESTS = {
-    "engineering-foundation-core": "a505d9d7d376ace3f2cd5fd5369dc417d0067a4eb03d2b5141276378e0065941",
+    "engineering-foundation-core": "69444e865337c823312a6882b6373c9682e479f9c72a60a8f4a03f0bbeaae1a0",
     "engineering-foundation-laravel": "64fb34691d66b7051c77c0a90058631ef7e0b308cd010878777642696d65a79c",
     "engineering-foundation-design": "3f7d5f37d264e7aa1d2ab94dea12a62806e5cef1728225319845429a33a63296",
     "engineering-foundation-cloud": "4fe88385d98e3ef2b36aa2b304b891c76db61db99f88480e211efb6b7a575982",
@@ -723,7 +723,7 @@ class PackagedResourceTests(unittest.TestCase):
         catalog = json.loads((ROOT / "catalog/plugins.json").read_text(encoding="utf-8"))
         inventory = packaged_resources.inventory_plugins(ROOT, catalog["plugins"])
         self.assertEqual(len(inventory), 5)
-        self.assertEqual(sum(len(items) for items in inventory.values()), 6)
+        self.assertEqual(sum(len(items) for items in inventory.values()), 7)
         self.assertEqual(
             {
                 kind: sum(
@@ -733,7 +733,7 @@ class PackagedResourceTests(unittest.TestCase):
                 )
                 for kind in packaged_resources.RESOURCE_KINDS
             },
-            {"scripts": 1, "references": 4, "assets": 1},
+            {"scripts": 2, "references": 4, "assets": 1},
         )
 
         with tempfile.TemporaryDirectory() as tmp:

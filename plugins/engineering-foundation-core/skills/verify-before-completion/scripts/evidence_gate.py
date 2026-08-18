@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,17 @@ ALLOWED_EVIDENCE_TYPES = {"command", "inspection", "runtime", "artifact", "decis
 TOP_LEVEL_FIELDS = {"task_id", "completion_status", "workspace", "items", "remaining_risks"}
 WORKSPACE_FIELDS = {"repository", "branch", "head_sha", "working_tree_reviewed"}
 ITEM_FIELDS = {"criterion_id", "status", "summary", "evidence"}
-EVIDENCE_FIELDS = {"type", "summary", "command", "fresh", "exit_code", "artifact_path"}
+EVIDENCE_FIELDS = {
+    "type",
+    "summary",
+    "command",
+    "fresh",
+    "exit_code",
+    "artifact_path",
+    "receipt",
+}
+RECEIPT_FIELDS = {"run_id", "command_id", "payload_sha256", "child_exit_code"}
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 CONTRACT_FIELDS = {
     "task_id",
     "objective",
@@ -220,8 +231,41 @@ def validate(
                     errors.append(f"{label}.exit_code is {exit_code} for PASS")
                 elif status == "FAIL" and exit_code == 0:
                     errors.append(f"{label}.exit_code must be non-zero for FAIL command evidence")
+                receipt = record.get("receipt")
+                if receipt is not None:
+                    if not isinstance(receipt, dict):
+                        errors.append(f"{label}.receipt must be an object")
+                    else:
+                        unknown_receipt = set(receipt) - RECEIPT_FIELDS
+                        missing_receipt = RECEIPT_FIELDS - set(receipt)
+                        if unknown_receipt:
+                            errors.append(
+                                f"{label}.receipt has unknown fields: {sorted(unknown_receipt)}"
+                            )
+                        if missing_receipt:
+                            errors.append(
+                                f"{label}.receipt is missing fields: {sorted(missing_receipt)}"
+                            )
+                        for field in ("run_id", "command_id"):
+                            if not _nonempty_string(receipt.get(field)):
+                                errors.append(f"{label}.receipt.{field} is required")
+                        if not SHA256_RE.fullmatch(
+                            str(receipt.get("payload_sha256", ""))
+                        ):
+                            errors.append(
+                                f"{label}.receipt.payload_sha256 must be lowercase SHA-256"
+                            )
+                        child_exit = receipt.get("child_exit_code")
+                        if type(child_exit) is not int:
+                            errors.append(
+                                f"{label}.receipt.child_exit_code must be an integer"
+                            )
+                        elif type(exit_code) is int and child_exit != exit_code:
+                            errors.append(
+                                f"{label}.receipt.child_exit_code must match exit_code"
+                            )
             else:
-                for field in ("command", "fresh", "exit_code"):
+                for field in ("command", "fresh", "exit_code", "receipt"):
                     if field in record:
                         errors.append(f"{label}.{field} is only valid for command evidence")
 

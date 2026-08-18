@@ -101,6 +101,12 @@ class CommandEvidence:
     exit_code: int | None
     output: str
     event_index: int
+    event_id: str | None = None
+    cwd: str | None = None
+    status: str | None = None
+    command_actions: tuple[str, ...] = ()
+    source: str | None = None
+    process_id: int | None = None
 
 
 @dataclass
@@ -957,12 +963,49 @@ def parse_live_turn(
             continue
         item_type = item.get("type")
         if item_type == "commandExecution":
+            raw_actions = item.get("commandActions")
+            actions = (
+                tuple(
+                    str(action.get("command", ""))
+                    for action in raw_actions
+                    if isinstance(action, dict)
+                    and isinstance(action.get("command"), str)
+                )
+                if isinstance(raw_actions, list)
+                else ()
+            )
             commands.append(
                 CommandEvidence(
                     command=str(item.get("command", "")),
-                    exit_code=item.get("exitCode") if isinstance(item.get("exitCode"), int) else None,
+                    exit_code=item.get("exitCode") if type(item.get("exitCode")) is int else None,
                     output=str(item.get("aggregatedOutput") or ""),
                     event_index=index,
+                    event_id=(
+                        str(item["id"])
+                        if isinstance(item.get("id"), str) and item.get("id")
+                        else None
+                    ),
+                    cwd=(
+                        str(item["cwd"])
+                        if isinstance(item.get("cwd"), str) and item.get("cwd")
+                        else None
+                    ),
+                    status=(
+                        str(item["status"])
+                        if isinstance(item.get("status"), str)
+                        else None
+                    ),
+                    command_actions=actions,
+                    source=(
+                        str(item["source"])
+                        if isinstance(item.get("source"), str)
+                        else None
+                    ),
+                    process_id=(
+                        item["processId"]
+                        if type(item.get("processId")) is int
+                        else None
+                    ),
                 )
             )
         elif item_type == "fileChange":

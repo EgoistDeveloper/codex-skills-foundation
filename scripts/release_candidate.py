@@ -22,19 +22,22 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
-CREATION_CONTRACT = "b02-h04-v1"
+CREATION_CONTRACT = "b02-h04r-v1"
 DEFAULT_REPOSITORY = "EgoistDeveloper/codex-skills-foundation"
 DEFAULT_INTENDED_TAG = "v0.3.0-beta.2"
 MANIFEST_FILENAME = "release-candidate.json"
 CHECKSUM_FILENAME = "SHA256SUMS"
 LIVE_CONTEXT_ENV = "ENGINEERING_FOUNDATION_CANDIDATE_CONTEXT"
+VERIFIER_RUNNER_MEMBER = (
+    "skills/verify-before-completion/scripts/run_verifier_with_receipt.py"
+)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 WINDOWS_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
 
 EXPECTED_PACKAGE_HASHES = {
     "engineering-foundation-core": (
-        "a505d9d7d376ace3f2cd5fd5369dc417d0067a4eb03d2b5141276378e0065941"
+        "69444e865337c823312a6882b6373c9682e479f9c72a60a8f4a03f0bbeaae1a0"
     ),
     "engineering-foundation-laravel": (
         "64fb34691d66b7051c77c0a90058631ef7e0b308cd010878777642696d65a79c"
@@ -399,6 +402,30 @@ def inspect_archive(
     }
 
 
+def archive_member_sha256(archive_path: Path, member_name: str) -> str:
+    """Hash one exact regular ZIP member, rejecting absence or duplication."""
+    validate_relative_name(member_name, label="archive member")
+    try:
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            matches = [
+                info for info in archive.infolist() if info.filename == member_name
+            ]
+            if len(matches) != 1:
+                raise CandidateError(
+                    f"archive must contain exactly one {member_name}: {archive_path.name}"
+                )
+            info = matches[0]
+            if info.is_dir() or stat.S_ISLNK(_zip_member_mode(info)):
+                raise CandidateError(
+                    f"archive verifier runner is not a regular file: {archive_path.name}"
+                )
+            return sha256_bytes(archive.read(info))
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise CandidateError(
+            f"cannot inspect candidate archive member {archive_path}: {exc}"
+        ) from exc
+
+
 def expected_checksum_bytes(packages: list[dict[str, Any]]) -> bytes:
     return "".join(
         f"{package['sha256']}  {package['archive_filename']}\n"
@@ -527,6 +554,11 @@ def create_candidate_manifest(
                 "provider_manifest_sha256": inspected[
                     "provider_manifest_sha256"
                 ],
+                "verifier_runner_sha256": (
+                    archive_member_sha256(archive, VERIFIER_RUNNER_MEMBER)
+                    if name == "engineering-foundation-core"
+                    else None
+                ),
             }
         )
 
@@ -587,6 +619,7 @@ def _require_manifest_shape(manifest: dict[str, Any]) -> None:
         "content_sha256",
         "plugin_manifest_sha256",
         "provider_manifest_sha256",
+        "verifier_runner_sha256",
     }
     names: set[str] = set()
     for package in packages:
@@ -608,6 +641,12 @@ def _require_manifest_shape(manifest: dict[str, Any]) -> None:
         for digest in provider_hashes.values():
             if not SHA256_RE.fullmatch(str(digest)):
                 raise CandidateError("candidate manifest provider hash is invalid")
+        runner_digest = package["verifier_runner_sha256"]
+        if package["name"] == "engineering-foundation-core":
+            if not SHA256_RE.fullmatch(str(runner_digest)):
+                raise CandidateError("candidate manifest verifier runner hash is invalid")
+        elif runner_digest is not None:
+            raise CandidateError("optional package declares a verifier runner hash")
 
 
 def verify_candidate_manifest(
@@ -721,6 +760,9 @@ def verify_lifecycle_evidence(
     }
     if actual_content != expected_content:
         raise CandidateError("lifecycle installed content SHA-256 inventory differs")
+    expected_runner = core_package(manifest).get("verifier_runner_sha256")
+    if evidence.get("installed_verifier_runner_sha256") != expected_runner:
+        raise CandidateError("lifecycle installed verifier runner SHA-256 differs")
 
 
 def verify_installed_plugin(
@@ -771,6 +813,24 @@ def verify_live_row(
         raise CandidateError("live row package sha256 is required")
     if package_digest != core.get("sha256"):
         raise CandidateError("live row package sha256 differs from candidate")
+    if row.get("case_id") == "required-evidence-refusal":
+        for field in (
+            "verifier_receipt_run_id",
+            "verifier_receipt_command_id",
+            "verifier_receipt_payload_sha256",
+            "verifier_receipt_event_id",
+        ):
+            value = row.get(field)
+            if not isinstance(value, str) or not value:
+                raise CandidateError(
+                    f"evidence-refusal live row omitted {field}"
+                )
+        if not SHA256_RE.fullmatch(
+            str(row.get("verifier_receipt_payload_sha256"))
+        ):
+            raise CandidateError(
+                "evidence-refusal live row receipt payload SHA-256 is invalid"
+            )
 
 
 def verify_live_rows(
@@ -952,6 +1012,38 @@ def verify_bounded_artifact(path: Path, run_root: Path) -> str:
     if not resolved.is_file():
         raise CandidateError(f"evidence artifact is not a regular file: {resolved}")
     return resolved.relative_to(run_root.resolve(strict=True)).as_posix()
+
+
+def regular_file_sha256(path: Path, root: Path, *, label: str) -> str:
+    """Hash one unchanged, unlinked regular file below an exact root."""
+    lexical_root = Path(os.path.abspath(root))
+    lexical_path = Path(os.path.abspath(path))
+    try:
+        relative = lexical_path.relative_to(lexical_root)
+    except ValueError as exc:
+        raise CandidateError(f"{label} escapes its artifact directory: {path}") from exc
+
+    for component in reversed((lexical_root, *lexical_root.parents)):
+        _reject_link_or_reparse(component)
+    current = lexical_root
+    for part in relative.parts:
+        current /= part
+        _reject_link_or_reparse(current)
+
+    resolved_root = lexical_root.resolve(strict=True)
+    resolved = _require_regular_artifact(lexical_path, resolved_root, label=label)
+    before = resolved.stat()
+    digest = sha256_file(resolved)
+    current_file = _require_regular_artifact(lexical_path, resolved_root, label=label)
+    after = current_file.stat()
+    if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
+        raise CandidateError(f"{label} changed while being hashed: {path}")
+    return digest
 
 
 def _reject_link_or_reparse(path: Path) -> None:
@@ -1154,6 +1246,9 @@ def create_live_runtime_context(
         "release_version": manifest["release_version"],
         "core_package_sha256": core_package(manifest)["sha256"],
         "core_content_sha256": core_package(manifest)["content_sha256"],
+        "core_verifier_runner_sha256": core_package(manifest)[
+            "verifier_runner_sha256"
+        ],
     }
 
 

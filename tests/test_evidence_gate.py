@@ -70,6 +70,34 @@ class EvidenceGateTests(unittest.TestCase):
         errors = module.validate(data, self.contract())
         self.assertTrue(any("only valid for command" in item for item in errors))
 
+    def test_command_receipt_binding_is_closed_and_matches_exit_code(self) -> None:
+        data = self.fixture("completion-evidence.pass.json")
+        command = data["items"][0]["evidence"][0]
+        command["receipt"] = {
+            "run_id": "run-1",
+            "command_id": "command-1",
+            "payload_sha256": "a" * 64,
+            "child_exit_code": 0,
+        }
+        self.assertEqual(module.validate(data, self.contract()), [])
+
+        for field, value in (
+            ("run_id", ""),
+            ("command_id", ""),
+            ("payload_sha256", "not-a-digest"),
+            ("child_exit_code", 1),
+        ):
+            with self.subTest(field=field):
+                invalid = self.fixture("completion-evidence.pass.json")
+                invalid["items"][0]["evidence"][0]["receipt"] = {
+                    "run_id": "run-1",
+                    "command_id": "command-1",
+                    "payload_sha256": "a" * 64,
+                    "child_exit_code": 0,
+                    field: value,
+                }
+                self.assertTrue(module.validate(invalid, self.contract()))
+
     def test_artifact_path_is_bounded_and_must_exist_when_workspace_is_supplied(self) -> None:
         data = self.fixture("completion-evidence.pass.json")
         data["items"][0]["evidence"] = [

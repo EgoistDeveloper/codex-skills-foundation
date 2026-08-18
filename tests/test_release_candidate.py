@@ -619,6 +619,21 @@ class ReleaseCandidateRedTests(unittest.TestCase):
             payload, self.valid_lifecycle(manifest, payload)
         )
 
+    def test_lifecycle_binds_installed_core_receipt_runner_identity(self) -> None:
+        manifest, payload = self.fixture.manifest(self.module)
+        payload["packages"][0]["name"] = "engineering-foundation-core"
+        payload["packages"][0]["verifier_runner_sha256"] = "a" * 64
+        evidence = self.valid_lifecycle(manifest, payload)
+        evidence["candidate_manifest_sha256"] = self.module.sha256_bytes(
+            self.module.canonical_json_bytes(payload)
+        )
+        evidence["installed_verifier_runner_sha256"] = "a" * 64
+        self.module.verify_lifecycle_evidence(payload, evidence)
+
+        evidence.pop("installed_verifier_runner_sha256")
+        with self.assertRaisesRegex(self.module.CandidateError, "verifier runner"):
+            self.module.verify_lifecycle_evidence(payload, evidence)
+
     def test_lifecycle_candidate_manifest_digest_is_required(self) -> None:
         manifest, payload = self.fixture.manifest(self.module)
         evidence = self.valid_lifecycle(manifest, payload)
@@ -784,6 +799,35 @@ class ReleaseCandidateRedTests(unittest.TestCase):
             )
         self.assertEqual(actual, expected)
 
+    def test_current_core_archive_receipt_runner_hash_is_exact(self) -> None:
+        catalog = json.loads((ROOT / "catalog/plugins.json").read_text(encoding="utf-8"))
+        core = next(
+            item
+            for item in catalog["plugins"]
+            if item["name"] == "engineering-foundation-core"
+        )
+        package_spec = importlib.util.spec_from_file_location(
+            "package_plugins_for_release_runner_identity",
+            ROOT / "scripts/package_plugins.py",
+        )
+        package_module = importlib.util.module_from_spec(package_spec)
+        assert package_spec.loader
+        package_spec.loader.exec_module(package_module)
+        with tempfile.TemporaryDirectory() as tmp:
+            archive, _ = package_module.build_archive(core, Path(tmp))
+            member_hash = self.module.archive_member_sha256(
+                archive,
+                self.module.VERIFIER_RUNNER_MEMBER,
+            )
+        runner = (
+            ROOT
+            / "plugins/engineering-foundation-core/skills/verify-before-completion"
+            / self.module.VERIFIER_RUNNER_MEMBER.removeprefix(
+                "skills/verify-before-completion/"
+            )
+        )
+        self.assertEqual(member_hash, sha256(runner))
+
     def valid_live_row(self, manifest: Path, payload: dict) -> dict:
         package = payload["packages"][0]
         return {
@@ -798,6 +842,26 @@ class ReleaseCandidateRedTests(unittest.TestCase):
             "candidate_manifest_sha256": sha256(manifest),
             "package_sha256": package["sha256"],
         }
+
+    def test_evidence_refusal_live_row_requires_structured_receipt_identity(self) -> None:
+        manifest, payload = self.fixture.manifest(self.module)
+        row = self.valid_live_row(manifest, payload)
+        row["case_id"] = "required-evidence-refusal"
+        with self.assertRaisesRegex(self.module.CandidateError, "verifier_receipt"):
+            self.module.verify_live_row(payload, row, sha256(manifest))
+
+        row.update(
+            {
+                "verifier_receipt_run_id": "run-1",
+                "verifier_receipt_command_id": "command-1",
+                "verifier_receipt_payload_sha256": "a" * 64,
+                "verifier_receipt_event_id": "event-1",
+            }
+        )
+        self.module.verify_live_row(payload, row, sha256(manifest))
+        row["verifier_receipt_payload_sha256"] = "invalid"
+        with self.assertRaisesRegex(self.module.CandidateError, "payload SHA-256"):
+            self.module.verify_live_row(payload, row, sha256(manifest))
 
     def test_live_rows_reject_cross_campaign_identity_drift(self) -> None:
         manifest, payload = self.fixture.manifest(self.module)

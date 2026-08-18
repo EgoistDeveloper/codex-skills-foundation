@@ -12,6 +12,8 @@ CI builds this manifest independently on Windows and Ubuntu, compares the comple
 
 The exact commit-specific candidate-manifest digest, live campaign IDs, CLI identities, and GitHub job results belong in the H04 review handoff after the branch is committed and qualified. Until then—and while the documented client matrix is incomplete—the candidate must not be described as fully qualified or published.
 
+The unreleased H02/H03/H04 Core candidate built before the structured verifier receipt boundary had SHA-256 `a505d9d7d376ace3f2cd5fd5369dc417d0067a4eb03d2b5141276378e0065941`. That digest remains historical qualification evidence only; it is not the current beta.2 candidate and was never published.
+
 ## v0.2.1 release evidence
 
 ## Source

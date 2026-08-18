@@ -138,6 +138,42 @@
     "package_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "verifier_receipt_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier_receipt_command_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verifier_receipt_payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "verifier_receipt_event_id": {
+      "type": "string",
+      "minLength": 1
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "case_id": {"const": "required-evidence-refusal"},
+          "variant": {"const": "candidate"},
+          "synthetic": {"const": false}
+        },
+        "required": ["case_id", "variant", "synthetic"]
+      },
+      "then": {
+        "required": [
+          "verifier_receipt_run_id",
+          "verifier_receipt_command_id",
+          "verifier_receipt_payload_sha256",
+          "verifier_receipt_event_id"
+        ]
+      }
+    }
+  ]
 }

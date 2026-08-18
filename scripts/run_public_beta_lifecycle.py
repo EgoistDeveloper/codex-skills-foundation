@@ -666,7 +666,35 @@ def main() -> int:
                             )
                         installed_content_sha256[plugin_name] = digest
                     result["installed_content_sha256"] = installed_content_sha256
+                    core_installed_path = Path(
+                        str(installed_payloads[core_name]["installedPath"])
+                    )
+                    installed_runner = (
+                        core_installed_path
+                        / release_candidate.VERIFIER_RUNNER_MEMBER
+                    )
+                    try:
+                        installed_runner_sha256 = (
+                            release_candidate.regular_file_sha256(
+                                installed_runner,
+                                core_installed_path,
+                                label="installed verifier receipt runner",
+                            )
+                        )
+                    except (OSError, release_candidate.CandidateError) as exc:
+                        raise LifecycleError(str(exc)) from exc
+                    expected_runner_sha256 = package_by_name[core_name][
+                        "verifier_runner_sha256"
+                    ]
+                    if installed_runner_sha256 != expected_runner_sha256:
+                        raise LifecycleError(
+                            "installed verifier receipt runner differs from exact archive"
+                        )
+                    result["installed_verifier_runner_sha256"] = (
+                        installed_runner_sha256
+                    )
                     result["steps"].append("exact_archive_content_identity:PASS")
+                    result["steps"].append("verifier_receipt_runner_identity:PASS")
                 inventory = cli_json(
                     launchers,
                     env,

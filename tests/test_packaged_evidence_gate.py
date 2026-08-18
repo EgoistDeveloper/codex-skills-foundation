@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE_ROOT = ROOT / "plugins/engineering-foundation-core"
 SKILL_ROOT = CORE_ROOT / "skills/verify-before-completion"
 PACKAGED_GATE = SKILL_ROOT / "scripts/evidence_gate.py"
+PACKAGED_RUNNER = SKILL_ROOT / "scripts/run_verifier_with_receipt.py"
 ROOT_GATE = ROOT / "scripts/evidence_gate.py"
 
 PACKAGE_SPEC = importlib.util.spec_from_file_location(
@@ -73,6 +74,9 @@ def write_minimal_core_plugin(repository: Path, *, include_helper: bool) -> Path
         helper = skill_root / "scripts/evidence_gate.py"
         helper.parent.mkdir()
         helper.write_text("# fixture helper\n", encoding="utf-8")
+        (helper.parent / "run_verifier_with_receipt.py").write_text(
+            "# fixture receipt runner\n", encoding="utf-8"
+        )
     return plugin_root
 
 
@@ -103,7 +107,12 @@ class PackagedEvidenceGateTests(unittest.TestCase):
     def test_skill_declares_a_resolvable_packaged_helper(self) -> None:
         skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("[scripts/evidence_gate.py](scripts/evidence_gate.py)", skill)
+        self.assertIn(
+            "[scripts/run_verifier_with_receipt.py](scripts/run_verifier_with_receipt.py)",
+            skill,
+        )
         self.assertTrue(PACKAGED_GATE.is_file())
+        self.assertTrue(PACKAGED_RUNNER.is_file())
 
     def test_core_archive_contains_packaged_evidence_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -112,6 +121,10 @@ class PackagedEvidenceGateTests(unittest.TestCase):
                 names = package.namelist()
                 self.assertIn(
                     "skills/verify-before-completion/scripts/evidence_gate.py",
+                    names,
+                )
+                self.assertIn(
+                    "skills/verify-before-completion/scripts/run_verifier_with_receipt.py",
                     names,
                 )
                 self.assertFalse(any("__pycache__" in name for name in names))
