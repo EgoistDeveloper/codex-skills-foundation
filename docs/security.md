@@ -13,7 +13,7 @@
 
 ## Default controls
 
-- Package inputs and repository-contained output paths reject file and directory symlinks, linked path components, Windows junctions and other reparse points, unsupported special files, absolute paths, cross-platform parent traversal, and resolved-path escapes. Every regular input is revalidated immediately before the release ZIP reads it; archives and `SHA256SUMS` are prepared as private temporary regular files and atomically published only after validation.
+- Package inputs and repository-contained output paths reject file and directory symlinks, linked path components, Windows junctions and other reparse points, unsupported special files, absolute paths, cross-platform parent traversal, and resolved-path escapes. Skill-local Markdown declarations for `scripts/`, `references/`, and `assets/` additionally require exact-case source containment and exact membership in the actual built ZIP. Every regular input is revalidated immediately before the release ZIP reads it; archives and `SHA256SUMS` are prepared as private temporary regular files and atomically published only after validation.
 - No MCP, hook, telemetry, credential bridge, or network client ships by default.
 - Portable skills contain no pre-approved tool grants.
 - Host sandbox and approvals remain authoritative.

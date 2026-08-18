@@ -21,6 +21,7 @@ class RepositoryValidatorTests(unittest.TestCase):
         provider_schema = ROOT / "schemas/provider/agent-plugins-1.0.0.schema.json"
         for plugin in plugins:
             all_skills.update(module.validate_plugin(plugin, provider_schema, report))
+        module.validate_packaged_resource_closure(plugins, report)
         module.validate_marketplaces(plugins, report)
         module.validate_profiles(report)
         module.validate_examples_and_schemas(report)

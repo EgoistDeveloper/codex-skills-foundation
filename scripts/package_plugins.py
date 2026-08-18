@@ -12,6 +12,12 @@ import tempfile
 import zipfile
 from pathlib import Path, PureWindowsPath
 
+SCRIPT_DIRECTORY = Path(__file__).resolve().parent
+if str(SCRIPT_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIRECTORY))
+
+import packaged_resources
+
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog/plugins.json"
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
@@ -424,6 +430,11 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
     archive_name = archive_filename(plugin)
     archive = resolved_output / archive_name
     validate_output_destination(archive)
+    resource_references = packaged_resources.validate_source_plugin(
+        plugin_root,
+        plugin["name"],
+        repository_root=ROOT,
+    )
     files = safe_files(plugin_root, repository_root=ROOT)
     required = {
         Path("plugin.json"),
@@ -469,6 +480,15 @@ def build_archive(plugin: dict, output: Path) -> tuple[Path, str]:
                     info.compress_type = zipfile.ZIP_STORED
                     zf.writestr(info, read_verified_file(path, plugin_root, ROOT))
             handle.flush()
+            handle.seek(0)
+            with zipfile.ZipFile(handle, "r") as built_archive:
+                packaged_resources.validate_zip_closure(
+                    plugin_root,
+                    plugin["name"],
+                    built_archive,
+                    references=resource_references,
+                    repository_root=ROOT,
+                )
             handle.seek(0)
             digest = hashlib.sha256()
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):

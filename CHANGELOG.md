@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a repository-wide packaged-resource closure gate for skill-local `scripts/`, `references/`, and `assets/` declarations. Strict validation now proves exact-case, no-link source containment, and the release packager independently verifies each declaration against the actual built ZIP without changing plugin bytes or versions.
 - Shipped the canonical completion-evidence gate inside Core's `verify-before-completion` skill so an installed package can validate evidence without the Foundation source repository. The repository-root entry point now delegates to that packaged implementation, and the Core source package identity advances to `0.3.0-beta.2`; no tag or release is created by this change.
 - Hardened the maintainer release packager, which previously lacked complete Windows junction/reparse-point and output containment gates, to reject linked path components, special entries, cross-platform traversal forms, output escapes, and linked artifact destinations. ZIPs and the checksum manifest are now prepared atomically, and failed runs remove outputs they generated. There is no evidence that `v0.3.0-beta.1` release assets were contaminated.
 

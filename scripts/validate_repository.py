@@ -11,6 +11,12 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIRECTORY = Path(__file__).resolve().parent
+if str(SCRIPT_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIRECTORY))
+
+import packaged_resources
+
 try:
     import yaml
     from jsonschema import Draft202012Validator
@@ -363,6 +369,20 @@ def validate_marketplaces(plugins: list[dict[str, Any]], report: Report) -> None
                 report.error(f"Claude marketplace version drift: {name}")
 
 
+def validate_packaged_resource_closure(
+    plugins: list[dict[str, Any]], report: Report
+) -> None:
+    for plugin in plugins:
+        try:
+            packaged_resources.validate_source_plugin(
+                ROOT / plugin["path"],
+                plugin["name"],
+                repository_root=ROOT,
+            )
+        except packaged_resources.ResourceClosureError as exc:
+            report.error(f"packaged resource closure: {exc}")
+
+
 def validate_profiles(report: Report) -> None:
     codex_profiles = sorted((ROOT / "profiles/codex").glob("*.toml"))
     claude_profiles = sorted((ROOT / "profiles/claude").glob("*.md"))
@@ -609,6 +629,7 @@ def main() -> int:
     all_skills: set[str] = set()
     for plugin in plugins:
         all_skills.update(validate_plugin(plugin, portable_schema, report))
+    validate_packaged_resource_closure(plugins, report)
     validate_marketplaces(plugins, report)
     validate_profiles(report)
     validate_examples_and_schemas(report)
