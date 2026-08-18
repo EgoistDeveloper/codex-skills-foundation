@@ -1070,6 +1070,45 @@ class ReleaseCandidateRedTests(unittest.TestCase):
         )
         self.assertFalse((marketplace / "catalog").exists())
 
+    def test_materialized_marketplace_preserves_archive_bytes_through_git(self) -> None:
+        manifest, payload = self.fixture.manifest(self.module)
+        marketplace = Path(self.temporary.name) / "marketplace-git-source"
+        self.module.materialize_candidate_marketplace(
+            manifest,
+            self.fixture.artifacts,
+            marketplace,
+            repository=self.fixture.repository,
+            expected_commit=self.fixture.commit,
+            marketplace_name="fixture-marketplace",
+        )
+        git(marketplace, "init", "-q", "-b", "main")
+        git(marketplace, "config", "user.name", "Candidate Tests")
+        git(marketplace, "config", "user.email", "candidate@example.invalid")
+        git(marketplace, "config", "core.autocrlf", "true")
+        git(marketplace, "add", ".")
+        git(marketplace, "commit", "-q", "-m", "candidate")
+
+        checkout = Path(self.temporary.name) / "marketplace-git-checkout"
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.autocrlf=true",
+                "clone",
+                "-q",
+                str(marketplace),
+                str(checkout),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self.module.directory_content_sha256(checkout / "plugins/example"),
+            payload["packages"][0]["content_sha256"],
+        )
+
     def test_candidate_context_rejects_path_outside_bounded_run(self) -> None:
         manifest, _ = self.fixture.manifest(self.module)
         run_root = Path(self.temporary.name) / "run"

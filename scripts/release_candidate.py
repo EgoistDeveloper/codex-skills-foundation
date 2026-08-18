@@ -1057,6 +1057,11 @@ def materialize_candidate_marketplace(
     if destination.exists():
         raise CandidateError(f"runtime marketplace destination already exists: {destination}")
     (destination / ".agents/plugins").mkdir(parents=True)
+    (destination / ".gitattributes").write_text(
+        "* -text\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     plugin_roots: dict[str, Path] = {}
     entries: list[dict[str, Any]] = []
     for package in manifest["packages"]:
