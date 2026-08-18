@@ -32,6 +32,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import run_codex_live_smoke as base
+import release_candidate
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "catalog" / "plugins.json"
@@ -190,9 +191,18 @@ def advance_marketplace_to_candidate(
     repository: Path,
     source: Path,
     bare: Path,
+    candidate_snapshot: Path | None = None,
 ) -> None:
     clear_worktree_except_git(source)
-    archive_commit(repository, "HEAD", source)
+    if candidate_snapshot is None:
+        archive_commit(repository, "HEAD", source)
+    else:
+        for child in candidate_snapshot.iterdir():
+            target = source / child.name
+            if child.is_dir():
+                shutil.copytree(child, target)
+            else:
+                shutil.copy2(child, target)
     git(["add", "-A"], cwd=source)
     changed = run_process(
         ["git", "diff", "--cached", "--quiet"],
@@ -400,11 +410,25 @@ def parse_args() -> argparse.Namespace:
         default=OUTPUT_ROOT,
         help="Lifecycle artifact root.",
     )
+    parser.add_argument(
+        "--candidate-manifest",
+        type=Path,
+        help="Exact release-candidate manifest produced after packaging.",
+    )
+    parser.add_argument(
+        "--artifacts",
+        type=Path,
+        help="Directory containing the exact five ZIPs and SHA256SUMS.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if bool(args.candidate_manifest) != bool(args.artifacts):
+        raise LifecycleError(
+            "--candidate-manifest and --artifacts must be supplied together."
+        )
     catalog = load_catalog()
     versions = plugin_versions(catalog)
     core_name = base.PLUGIN_NAME
@@ -419,6 +443,27 @@ def main() -> int:
         pass
 
     launchers = base.resolve_codex_launchers()
+    repository_head = git(["rev-parse", "HEAD"], cwd=ROOT)
+    candidate_manifest: dict[str, Any] | None = None
+    candidate_manifest_sha256: str | None = None
+    package_sha256: dict[str, str] | None = None
+    if args.candidate_manifest is not None and args.artifacts is not None:
+        try:
+            candidate_manifest = release_candidate.verify_candidate_manifest(
+                args.candidate_manifest,
+                args.artifacts,
+                repository=ROOT,
+                expected_commit=repository_head,
+            )
+        except release_candidate.CandidateError as exc:
+            raise LifecycleError(str(exc)) from exc
+        candidate_manifest_sha256 = release_candidate.sha256_file(
+            args.candidate_manifest
+        )
+        package_sha256 = {
+            str(package["name"]): str(package["sha256"])
+            for package in candidate_manifest["packages"]
+        }
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -430,13 +475,24 @@ def main() -> int:
         "schema_version": 1,
         "outcome": "HARNESS_ERROR",
         "model_calls": 0,
-        "repository_head": git(["rev-parse", "HEAD"], cwd=ROOT),
+        "repository_head": repository_head,
         "previous_marketplace_commit": PREVIOUS_MARKETPLACE_COMMIT,
         "previous_core_version": PREVIOUS_CORE_VERSION,
         "release_version": RELEASE_VERSION,
         "marketplace_name": base.MARKETPLACE_NAME,
         "codex_version": launchers.version_text,
         "steps": [],
+        "artifact_source": (
+            "exact_archive" if candidate_manifest is not None else "source_tree"
+        ),
+        "subject_commit_sha": (
+            candidate_manifest["subject_commit_sha"]
+            if candidate_manifest is not None
+            else repository_head
+        ),
+        "candidate_manifest_sha256": candidate_manifest_sha256,
+        "package_sha256": package_sha256,
+        "state_restored": False,
     }
 
     try:
@@ -448,6 +504,22 @@ def main() -> int:
                 repository=ROOT,
                 temporary_root=temporary_root,
             )
+            candidate_snapshot: Path | None = None
+            if candidate_manifest is not None:
+                assert args.candidate_manifest is not None
+                assert args.artifacts is not None
+                candidate_snapshot = temporary_root / "candidate-artifact-marketplace"
+                try:
+                    release_candidate.materialize_candidate_marketplace(
+                        args.candidate_manifest,
+                        args.artifacts,
+                        candidate_snapshot,
+                        repository=ROOT,
+                        expected_commit=repository_head,
+                        marketplace_name=base.MARKETPLACE_NAME,
+                    )
+                except release_candidate.CandidateError as exc:
+                    raise LifecycleError(str(exc)) from exc
             codex_home = temporary_root / "codex-home"
             env = isolated_environment(codex_home)
             workspace = temporary_root / "workspace"
@@ -460,7 +532,7 @@ def main() -> int:
             )
             candidate_plugin_names = set(versions)
             candidate_expected_skills = expected_skill_names(
-                ROOT,
+                candidate_snapshot or ROOT,
                 candidate_plugin_names,
             )
 
@@ -519,6 +591,7 @@ def main() -> int:
                     repository=ROOT,
                     source=source,
                     bare=bare,
+                    candidate_snapshot=candidate_snapshot,
                 )
                 upgrade_output = cli_json(
                     launchers,
@@ -545,11 +618,14 @@ def main() -> int:
                     expected_version=RELEASE_VERSION,
                 )
                 result["beta_core_install"] = beta_core
+                installed_payloads: dict[str, dict[str, Any]] = {
+                    core_name: beta_core
+                }
                 result["steps"].append("core_reinstall_update:PASS")
 
                 for plugin_name in sorted(candidate_plugin_names - {core_name}):
                     selector = f"{plugin_name}@{base.MARKETPLACE_NAME}"
-                    require_plugin_version(
+                    installed_payloads[plugin_name] = require_plugin_version(
                         payload=cli_json(
                             launchers,
                             env,
@@ -561,6 +637,36 @@ def main() -> int:
                         plugin_name=plugin_name,
                         expected_version=versions[plugin_name],
                     )
+                if candidate_manifest is not None:
+                    package_by_name = {
+                        str(package["name"]): package
+                        for package in candidate_manifest["packages"]
+                    }
+                    installed_content_sha256: dict[str, str] = {}
+                    for plugin_name, payload in installed_payloads.items():
+                        installed_path_value = payload.get("installedPath")
+                        if not isinstance(installed_path_value, str):
+                            raise LifecycleError(
+                                f"{plugin_name} install result omitted installedPath."
+                            )
+                        installed_path = Path(installed_path_value)
+                        try:
+                            digest = release_candidate.directory_content_sha256(
+                                installed_path
+                            )
+                        except release_candidate.CandidateError as exc:
+                            raise LifecycleError(str(exc)) from exc
+                        expected_content = package_by_name[plugin_name][
+                            "content_sha256"
+                        ]
+                        if digest != expected_content:
+                            raise LifecycleError(
+                                f"installed plugin content differs from exact archive: "
+                                f"{plugin_name}"
+                            )
+                        installed_content_sha256[plugin_name] = digest
+                    result["installed_content_sha256"] = installed_content_sha256
+                    result["steps"].append("exact_archive_content_identity:PASS")
                 inventory = cli_json(
                     launchers,
                     env,
@@ -632,6 +738,7 @@ def main() -> int:
                     marketplace_name=base.MARKETPLACE_NAME,
                 ):
                     raise LifecycleError("one or more beta plugins remain installed.")
+                result["installed_plugins_remaining"] = []
                 result["steps"].append("all_packages_remove:PASS")
 
                 removed_marketplace = cli_json(
@@ -664,6 +771,7 @@ def main() -> int:
                     for row in marketplaces
                 ):
                     raise LifecycleError("beta marketplace remains configured.")
+                result["marketplace_remaining"] = False
                 result["steps"].append("marketplace_remove:PASS")
 
             config_text = (codex_home / "config.toml").read_text(encoding="utf-8")
@@ -681,6 +789,7 @@ def main() -> int:
             result["isolated_codex_home"] = str(codex_home)
             result["isolated_config_clean"] = True
             result["loopback_only"] = True
+            result["state_restored"] = True
             result["outcome"] = "PASS"
     except Exception as error:
         result["error"] = str(error)
@@ -699,6 +808,19 @@ def main() -> int:
         encoding="utf-8",
         newline="\n",
     )
+    if candidate_manifest is not None:
+        try:
+            release_candidate.verify_lifecycle_evidence(candidate_manifest, result)
+        except release_candidate.CandidateError as exc:
+            result["outcome"] = "HARNESS_ERROR"
+            result["error"] = str(exc)
+            artifact_path.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
     print("\nPUBLIC BETA LIFECYCLE SUMMARY")
     print(f"  outcome             : {result['outcome']}")
     print(f"  model calls         : {result['model_calls']}")

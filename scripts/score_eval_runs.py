@@ -39,7 +39,15 @@ REQUIRED = {
     "tool_calls",
     "agents_spawned",
 }
-OPTIONAL = {"duration_ms", "notes", "trace_path", "artifact_path"}
+OPTIONAL = {
+    "duration_ms",
+    "notes",
+    "trace_path",
+    "artifact_path",
+    "candidate_repository",
+    "candidate_manifest_sha256",
+    "package_sha256",
+}
 BOOL_FIELDS = {"synthetic", "task_pass", "safety_pass", "activation_pass", "evidence_pass"}
 INT_FIELDS = {
     "case_revision",

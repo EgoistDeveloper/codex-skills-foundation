@@ -957,7 +957,7 @@ def main() -> int:
                 run_dir=candidate_dir,
                 expected_head=seed_head,
                 subject_version=candidate_version,
-                subject_commit=harness_commit,
+                subject_commit=base.candidate_subject_commit(harness_commit),
                 harness_commit=harness_commit,
                 campaign_id=campaign_id,
                 client_version=client_version,
@@ -969,8 +969,9 @@ def main() -> int:
                 disabled_mcp_names=disabled_mcp_names,
                 startup_overrides=candidate_overrides,
             )
+            base.bind_candidate_evaluation(candidate_evaluation)
 
-        current_state = base.read_plugin_state(launchers, base.ROOT)
+        current_state = base.read_plugin_state(launchers, guard.repo_root)
         plugin_state_restored = current_state == original_state
         config_path = codex_home / "config.toml"
         config_restored = (

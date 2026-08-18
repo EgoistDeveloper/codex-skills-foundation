@@ -909,7 +909,7 @@ def main() -> int:
     auth = base.login_status(launchers)
     candidate_version = base.load_catalog()
     harness_commit = base.git(["rev-parse", "HEAD"], cwd=base.ROOT)
-    subject_commit = harness_commit
+    subject_commit = base.candidate_subject_commit(harness_commit)
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     campaign = base.campaign_directory(output_root)
@@ -1186,6 +1186,7 @@ def main() -> int:
                 startup_config_overrides=candidate_startup_overrides,
                 exposed_core_skills=exposed_core,
             )
+            base.bind_candidate_evaluation(candidate_eval)
 
             runs_path = campaign / "runs.jsonl"
             runs_path.write_text(
@@ -1234,7 +1235,7 @@ def main() -> int:
                 outcome = "PASS" if score_result.returncode == 0 else "FAIL"
 
         assert guard is not None
-        final_state = base.read_plugin_state(launchers, base.ROOT)
+        final_state = base.read_plugin_state(launchers, guard.repo_root)
         original = guard.original
         state_restored = (
             final_state.marketplace_existed == original.marketplace_existed

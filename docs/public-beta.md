@@ -108,3 +108,15 @@ python scripts/run_public_beta_lifecycle.py
 ```
 
 At the published `v0.3.0-beta.1` tag, it installs Core `0.2.2`, advances the temporary marketplace to `0.3.0-beta.1`, upgrades/reinstalls Core, installs all optional packages, verifies namespaced skill discovery, removes every package, removes the marketplace, and checks that no lifecycle state remains in the disposable config. On `main`, the harness follows the catalog's current unreleased Core candidate; that source identity is not a published release. End users do not run this harness.
+
+For the unreleased beta.2 source candidate, maintainers must build a deterministic `release-candidate.json` and run the exact-artifact wrapper. This path extracts the five qualified ZIPs into a disposable marketplace, verifies installed content against the archive-derived content hashes, uses a disposable `CODEX_HOME`, makes zero model calls, and removes every candidate package and marketplace entry:
+
+```bash
+python scripts/release_candidate.py build --artifacts dist
+python scripts/run_exact_artifact_qualification.py \
+  --candidate-manifest dist/release-candidate.json \
+  --artifacts dist \
+  --lifecycle-only
+```
+
+The candidate remains `UNRELEASED`. These commands do not create `v0.3.0-beta.2`, publish a release, or change the beta.1 installation instructions above.

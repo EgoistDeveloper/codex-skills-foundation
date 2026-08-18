@@ -26,6 +26,21 @@ The live harnesses require:
 
 Generated campaigns stay below the ignored `.eval-runs/` directory and do not dirty the foundation repository. Every live command requires `--confirm-live` because it consumes authenticated plan usage and temporarily changes core plugin/marketplace state.
 
+## Exact-artifact H04 wrapper
+
+Release qualification must not reuse the source-tree package or an ambient installed Core. After a clean committed candidate has been packaged and `dist/release-candidate.json` has been created, run the bounded wrapper:
+
+```bash
+python scripts/run_exact_artifact_qualification.py \
+  --candidate-manifest dist/release-candidate.json \
+  --artifacts dist \
+  --confirm-live
+```
+
+The wrapper first completes the zero-model exact-archive lifecycle. It then materializes a uniquely named disposable marketplace from the five qualified ZIPs and runs the current canonical repeatability, bounded-delegation, and evidence-refusal launchers. The installed Core content, subject commit, Core version, Core ZIP SHA-256, and candidate-manifest SHA-256 must agree before candidate rows are accepted. It stops at the first non-PASS or harness error and requires exact state restoration.
+
+The wrapper performs 16 authenticated model turns: twelve from three repetitions of the positive debugging and negative tiny-edit cases, two for bounded delegation, and two for failed-evidence refusal. Its shareable summary is `LIVE` and `PARTIAL`; ChatGPT/Codex desktop, Codex Cloud, authenticated Claude Code behavior, and the Agent Plugins reference client remain `NOT_RUN`. Raw traces remain under ignored `.eval-runs/` and must still be inspected before sharing.
+
 ## Explicit positive debugging smoke
 
 This campaign asks whether one explicitly selected core debugging skill completes a controlled defect safely and with reviewable evidence, compared with an isolated baseline.

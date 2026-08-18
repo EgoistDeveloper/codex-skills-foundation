@@ -26,11 +26,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TextIO
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+import release_candidate
+
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "catalog/plugins.json"
 SCORER_PATH = ROOT / "scripts/score_eval_runs.py"
 
-MARKETPLACE_NAME = "egoist-engineering-foundation"
+DEFAULT_MARKETPLACE_NAME = "egoist-engineering-foundation"
+
+
+def _bootstrap_marketplace_name() -> str:
+    context_value = os.environ.get(release_candidate.LIVE_CONTEXT_ENV)
+    if not context_value:
+        return DEFAULT_MARKETPLACE_NAME
+    context_path = Path(context_value)
+    try:
+        context = json.loads(context_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"cannot load candidate live context: {exc}") from exc
+    name = context.get("marketplace_name") if isinstance(context, dict) else None
+    if not isinstance(name, str) or not name.startswith(
+        "egoist-engineering-foundation-h04-"
+    ):
+        raise RuntimeError("candidate live context has an invalid marketplace name")
+    return name
+
+
+MARKETPLACE_NAME = _bootstrap_marketplace_name()
 PLUGIN_NAME = "engineering-foundation-core"
 PLUGIN_ID = f"{PLUGIN_NAME}@{MARKETPLACE_NAME}"
 SKILL_BARE_NAME = "systematic-debugging"
@@ -111,6 +137,59 @@ class OriginalPluginState:
     plugin_version: str | None
 
 
+_CANDIDATE_RUNTIME_CACHE: tuple[dict[str, Any], dict[str, Any]] | None = None
+
+
+def candidate_runtime() -> tuple[dict[str, Any], dict[str, Any]] | None:
+    global _CANDIDATE_RUNTIME_CACHE, MARKETPLACE_NAME, PLUGIN_ID
+    context_value = os.environ.get(release_candidate.LIVE_CONTEXT_ENV)
+    if not context_value:
+        return None
+    if _CANDIDATE_RUNTIME_CACHE is None:
+        try:
+            _CANDIDATE_RUNTIME_CACHE = release_candidate.load_live_runtime_context(
+                Path(context_value),
+                repository=ROOT,
+            )
+        except release_candidate.CandidateError as exc:
+            raise HarnessError(str(exc)) from exc
+        context = _CANDIDATE_RUNTIME_CACHE[0]
+        MARKETPLACE_NAME = str(context["marketplace_name"])
+        PLUGIN_ID = f"{PLUGIN_NAME}@{MARKETPLACE_NAME}"
+    return _CANDIDATE_RUNTIME_CACHE
+
+
+def candidate_subject_commit(default: str) -> str:
+    runtime = candidate_runtime()
+    return str(runtime[0]["subject_commit_sha"]) if runtime is not None else default
+
+
+def bind_candidate_evaluation(evaluation: Any) -> None:
+    runtime = candidate_runtime()
+    if runtime is None:
+        return
+    context, manifest = runtime
+    row = getattr(evaluation, "row", None)
+    artifact = getattr(evaluation, "artifact", None)
+    if not isinstance(row, dict) or not isinstance(artifact, dict):
+        raise HarnessError("candidate evaluation has an invalid row/artifact shape")
+    identity = {
+        "candidate_repository": context["repository"],
+        "candidate_manifest_sha256": context["candidate_manifest_sha256"],
+        "package_sha256": context["core_package_sha256"],
+    }
+    row.update(identity)
+    artifact.update(identity)
+    try:
+        release_candidate.verify_live_row(
+            manifest,
+            row,
+            str(context["candidate_manifest_sha256"]),
+        )
+    except release_candidate.CandidateError as exc:
+        raise HarnessError(str(exc)) from exc
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -179,10 +258,23 @@ def resolve_codex_launchers() -> CodexLaunchers:
             "Node.js was not found on PATH. The live fixture deliberately uses the same "
             "runtime family required by the npm Codex launcher."
         )
+    configured_codex: str | None = os.environ.get("CODEX_CLI_PATH")
+    if not configured_codex:
+        config_path = Path.home() / ".codex" / "config.toml"
+        if config_path.is_file():
+            try:
+                config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+            except (OSError, tomllib.TOMLDecodeError) as exc:
+                raise HarnessError(f"could not parse Codex config for CLI identity: {exc}") from exc
+            configured_value = config.get("CODEX_CLI_PATH")
+            if isinstance(configured_value, str) and configured_value.strip():
+                configured_codex = configured_value
     codex_cmd = shutil.which("codex.cmd") if os.name == "nt" else None
-    codex = codex_cmd or shutil.which("codex")
+    codex = configured_codex or codex_cmd or shutil.which("codex")
     if not codex:
         raise HarnessError("Codex CLI was not found on PATH.")
+    if not Path(codex).is_file():
+        raise HarnessError(f"configured Codex CLI was not found: {codex}")
 
     candidate = (
         Path(codex).resolve().parent
@@ -213,6 +305,9 @@ def resolve_codex_launchers() -> CodexLaunchers:
     )
 
 def load_catalog() -> str:
+    runtime = candidate_runtime()
+    if runtime is not None:
+        return str(release_candidate.core_package(runtime[1])["version"])
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     marketplace = str(catalog["marketplace"]["name"])
     matches = [plugin for plugin in catalog["plugins"] if plugin["name"] == PLUGIN_NAME]
@@ -300,6 +395,12 @@ class PluginStateGuard(AbstractContextManager["PluginStateGuard"]):
         repo_root: Path,
         candidate_version: str,
     ) -> None:
+        runtime = candidate_runtime()
+        if runtime is not None:
+            repo_root = Path(runtime[0]["marketplace_root"])
+            candidate_version = str(
+                release_candidate.core_package(runtime[1])["version"]
+            )
         self.launchers = launchers
         self.repo_root = repo_root
         self.candidate_version = candidate_version
@@ -354,10 +455,23 @@ class PluginStateGuard(AbstractContextManager["PluginStateGuard"]):
                 f"Codex installed {added_plugin.get('version')!r}, expected "
                 f"{self.candidate_version!r}."
             )
-        installed_path = Path(str(added_plugin.get("installedPath"))).resolve()
+        installed_path = Path(str(added_plugin.get("installedPath")))
         if not installed_path.is_dir():
             raise HarnessError(f"installed plugin path does not exist: {installed_path}")
-        return installed_path
+        runtime = candidate_runtime()
+        if runtime is not None:
+            expected_content = str(runtime[0]["core_content_sha256"])
+            try:
+                installed_content = release_candidate.directory_content_sha256(
+                    installed_path
+                )
+            except release_candidate.CandidateError as exc:
+                raise HarnessError(str(exc)) from exc
+            if installed_content != expected_content:
+                raise HarnessError(
+                    "installed Core content differs from the qualified archive"
+                )
+        return installed_path.resolve(strict=True)
 
     def __enter__(self) -> "PluginStateGuard":
         return self
@@ -1333,7 +1447,7 @@ def main() -> int:
     auth = login_status(launchers)
     candidate_version = load_catalog()
     harness_commit = git(["rev-parse", "HEAD"], cwd=ROOT)
-    subject_commit = harness_commit
+    subject_commit = candidate_subject_commit(harness_commit)
     output_root = args.output.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     campaign = campaign_directory(output_root)
@@ -1516,6 +1630,7 @@ def main() -> int:
                 disabled_skill_paths=candidate_disabled_skills,
                 allowed_skill_path=explicit_skill[1],
             )
+            bind_candidate_evaluation(candidate_eval)
 
             runs_path = campaign / "runs.jsonl"
             runs_path.write_text(
@@ -1562,7 +1677,7 @@ def main() -> int:
                 outcome = "PASS" if score_result.returncode == 0 else "FAIL"
 
         assert guard is not None
-        final_state = read_plugin_state(launchers, ROOT)
+        final_state = read_plugin_state(launchers, guard.repo_root)
         original = guard.original
         state_restored = (
             final_state.marketplace_existed == original.marketplace_existed

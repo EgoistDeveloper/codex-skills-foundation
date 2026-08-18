@@ -76,6 +76,7 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
             repo_root=_impl.ROOT,
             candidate_version=subject_version,
         )
+        self.repo_root = getattr(self.guard, "repo_root", _impl.ROOT)
         self.codex_home: Path | None = None
         self.restored = False
         self.restore_error: str | None = None
@@ -111,7 +112,9 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
         try:
-            current_before = base.read_plugin_state(self.launchers, _impl.ROOT)
+            current_before = base.read_plugin_state(
+                self.launchers, self.repo_root
+            )
             # An interrupted child may have added the marketplace. Mark it as
             # parent-added only when it is still present and was absent in the
             # snapshot, avoiding a double-remove after normal child cleanup.
@@ -124,7 +127,9 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
             self.restore_error = str(error)
 
         try:
-            self.current_state = base.read_plugin_state(self.launchers, _impl.ROOT)
+            self.current_state = base.read_plugin_state(
+                self.launchers, self.repo_root
+            )
             self.config_restored = self._config_matches_snapshot()
             self.restored = (
                 plugin_states_equal(self.current_state, self.guard.original)
