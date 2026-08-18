@@ -35,7 +35,7 @@ import run_codex_live_smoke as base
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "catalog" / "plugins.json"
-RELEASE_VERSION = "0.3.0-beta.1"
+RELEASE_VERSION = "0.3.0-beta.2"
 PREVIOUS_CORE_VERSION = "0.2.2"
 PREVIOUS_MARKETPLACE_COMMIT = "578d9836c040b27ed54ebf68291990cfeca288d4"
 LIFECYCLE_BRANCH = "beta-lifecycle"

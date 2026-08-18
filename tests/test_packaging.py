@@ -19,7 +19,7 @@ assert SPEC.loader
 SPEC.loader.exec_module(module)
 
 EXPECTED_DIGESTS = {
-    "engineering-foundation-core": "2eb3327e0a1288cdc55627a8feaa4315f39d59071de853b02ebe62bca1f1e0ac",
+    "engineering-foundation-core": "a505d9d7d376ace3f2cd5fd5369dc417d0067a4eb03d2b5141276378e0065941",
     "engineering-foundation-laravel": "64fb34691d66b7051c77c0a90058631ef7e0b308cd010878777642696d65a79c",
     "engineering-foundation-design": "3f7d5f37d264e7aa1d2ab94dea12a62806e5cef1728225319845429a33a63296",
     "engineering-foundation-cloud": "4fe88385d98e3ef2b36aa2b304b891c76db61db99f88480e211efb6b7a575982",
