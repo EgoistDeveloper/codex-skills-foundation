@@ -2,13 +2,13 @@
 
 Codex, ChatGPT, Codex Cloud, Claude Code ve Agent Skills / Agent Plugins uyumlu istemciler için modüler, kanıta dayalı ve token-bilinçli mühendislik foundation'ı.
 
-**Public beta:** `engineering-foundation-core` `0.3.0-beta.1`. Kapsam, kurulum, güncelleme, kaldırma, kanıtlanan davranışlar ve sınırlar için [`docs/public-beta.md`](docs/public-beta.md) belgesine bakın.
+**Public beta:** `engineering-foundation-core` `0.3.0-beta.2`. Kapsam, kurulum, güncelleme, kaldırma, kanıtlanan davranışlar ve sınırlar için [`docs/public-beta.md`](docs/public-beta.md) belgesine bakın.
 
 ## Hangi paket kurulmalı?
 
 | Paket | Bu release içindeki sürüm | Kullanım |
 |---|---:|---|
-| `engineering-foundation-core` | `0.3.0-beta.1` | Her yazılım projesinde |
+| `engineering-foundation-core` | `0.3.0-beta.2` | Her yazılım projesinde |
 | `engineering-foundation-laravel` | `0.2.1` | Yalnız Laravel/PHP projelerinde |
 | `engineering-foundation-design` | `0.2.1` | Arayüz üretimi, redesign ve visual QA işlerinde |
 | `engineering-foundation-cloud` | `0.2.1` | Codex Cloud veya başka remote-agent ortamlarında |
@@ -23,7 +23,7 @@ Bu beta için genişletilmiş authenticated canlı davranış kanıtı yalnız C
 Tekrarlanabilir kurulum için beta tag'ini kullanın:
 
 ```text
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.1
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.2
 codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 

@@ -1,12 +1,12 @@
 # Engineering Foundation public beta
 
-`v0.3.0-beta.1` is the first public beta of `engineering-foundation-core`. The beta is intended for real project use with reviewable safeguards, not as a claim that probabilistic agents have suddenly become incapable of error. Software marketing has tried that sentence before; reality was unimpressed.
+`v0.3.0-beta.2` is the current public beta of `engineering-foundation-core`; `v0.3.0-beta.1` remains available as the immutable first public beta. The beta is intended for real project use with reviewable safeguards, not as a claim that probabilistic agents have suddenly become incapable of error. Software marketing has tried that sentence before; reality was unimpressed.
 
 ## Release scope
 
 | Package | Version in this repository release | Evidence level |
 |---|---:|---|
-| `engineering-foundation-core` | `0.3.0-beta.1` | static/provider validation plus authenticated Codex CLI behavior evidence |
+| `engineering-foundation-core` | `0.3.0-beta.2` | static/provider validation plus exact-artifact authenticated Codex CLI behavior evidence |
 | `engineering-foundation-laravel` | `0.2.1` | static/provider validation |
 | `engineering-foundation-design` | `0.2.1` | static/provider validation |
 | `engineering-foundation-cloud` | `0.2.1` | static/provider validation |
@@ -19,7 +19,7 @@ The optional packages are included because they remain installable and cross-pla
 Use the release tag for a reproducible installation:
 
 ```text
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.1
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.2
 codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 
@@ -107,9 +107,9 @@ The final release-candidate lifecycle uses an isolated `CODEX_HOME`, a loopback-
 python scripts/run_public_beta_lifecycle.py
 ```
 
-At the published `v0.3.0-beta.1` tag, it installs Core `0.2.2`, advances the temporary marketplace to `0.3.0-beta.1`, upgrades/reinstalls Core, installs all optional packages, verifies namespaced skill discovery, removes every package, removes the marketplace, and checks that no lifecycle state remains in the disposable config. On `main`, the harness follows the catalog's current unreleased Core candidate; that source identity is not a published release. End users do not run this harness.
+At the published `v0.3.0-beta.2` tag, the exact-artifact lifecycle installs the five frozen release archives, discovers fourteen skills, verifies archive-derived installed content, removes every package and marketplace entry, and proves that the disposable configuration is restored. End users do not run this harness.
 
-For the unreleased beta.2 source candidate, maintainers must build a deterministic `release-candidate.json` and run the exact-artifact wrapper. This path extracts the five qualified ZIPs into a disposable marketplace, verifies installed content against the archive-derived content hashes, uses a disposable `CODEX_HOME`, makes zero model calls, and removes every candidate package and marketplace entry:
+For future release candidates, maintainers build a deterministic `release-candidate.json` and run the exact-artifact wrapper. This path extracts the five qualified ZIPs into a disposable marketplace, verifies installed content against the archive-derived content hashes, uses a disposable `CODEX_HOME`, makes zero model calls for lifecycle qualification, and removes every candidate package and marketplace entry:
 
 ```bash
 python scripts/release_candidate.py build --artifacts dist
@@ -119,4 +119,4 @@ python scripts/run_exact_artifact_qualification.py \
   --lifecycle-only
 ```
 
-The candidate remains `UNRELEASED`. These commands do not create `v0.3.0-beta.2`, publish a release, or change the beta.1 installation instructions above.
+The published `v0.3.0-beta.2` release is bound to commit `98658cd359a05022247622ae00e805ada6c7cfbd` and candidate-manifest SHA-256 `a22be1e252142da8abcab84a0f18006319245702f5f8f03c872c3c85d101ddcc`. Its exact package hashes and bounded qualification record are in [`releases/v0.3.0-beta.2.md`](releases/v0.3.0-beta.2.md). Qualification remains `PARTIAL`: the in-scope Codex CLI cases passed, while ChatGPT/Codex desktop, Codex Cloud, authenticated Claude Code, and the Agent Plugins reference client remain `NOT_RUN`.

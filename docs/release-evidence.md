@@ -2,17 +2,27 @@
 
 This record separates deterministic repository/provider validation from authenticated model-behavior qualification. A green parser is not suddenly a sentient software engineer, however persuasive the badge may look.
 
-## Unreleased beta.2 exact-artifact candidate
+## Published v0.3.0-beta.2 exact-artifact release
 
-The current source candidate is Core `0.3.0-beta.2` with all four optional packages remaining at `0.2.1`. It is `UNRELEASED`; `v0.3.0-beta.1` remains the only published public-beta tag.
+[`v0.3.0-beta.2`](https://github.com/EgoistDeveloper/codex-skills-foundation/releases/tag/v0.3.0-beta.2) is a published prerelease of Core `0.3.0-beta.2`; all four optional packages remain at `0.2.1`. The annotated tag resolves to exact qualified commit `98658cd359a05022247622ae00e805ada6c7cfbd`. `v0.3.0-beta.1` remains an immutable historical prerelease.
 
 H04 adds a deterministic `release-candidate.json` contract and a separate runtime qualification summary. The stable manifest binds one clean Git commit to the catalog and marketplace identities, the five exact ZIP byte sizes and hashes, archive-derived content hashes and skill counts, and the `SHA256SUMS` hash. Runtime evidence refers to the manifest by SHA-256 and records provider identities, exact-artifact lifecycle evidence, bounded live case evidence, scorer results, model-turn count, restoration, and remaining `NOT_RUN` clients without committing raw traces or user-specific absolute paths.
 
-CI builds this manifest independently on Windows and Ubuntu, compares the complete candidate artifact sets byte-for-byte, then downloads the exact Linux set and runs a zero-model install/discovery/remove lifecycle from extracted ZIP content. A later release operation must use `release_candidate.py verify-assets` to prove repository, prerelease tag, tag target, expected filenames, exact bytes, package versions, `SHA256SUMS`, and candidate manifest identity. H04 does not create the future tag or release and does not claim artifact attestation.
+CI built this manifest independently on Windows and Ubuntu, compared the complete candidate artifact sets byte-for-byte, then downloaded the exact Linux set and ran a zero-model install/discovery/remove lifecycle from extracted ZIP content. Publication used the independently frozen seven-file asset set, and `release_candidate.py verify-assets` passed against both the draft download and a fresh public download. This release does not claim artifact attestation.
 
-The exact commit-specific candidate-manifest digest, live campaign IDs, CLI identities, and GitHub job results belong in the H04 review handoff after the branch is committed and qualified. Until then—and while the documented client matrix is incomplete—the candidate must not be described as fully qualified or published.
+The published candidate-manifest SHA-256 is `a22be1e252142da8abcab84a0f18006319245702f5f8f03c872c3c85d101ddcc`; `SHA256SUMS` has SHA-256 `d87708a1066bebfbe3f7bd9e5ebeb145105ae6d6ae0998835aa1b63974ed0e32`. The zero-model campaign `20260819-221917-1ea76682` made no model calls and passed lifecycle, receipt, path, encoding, cleanup, and restoration gates. The exact live campaign `20260819-222102-cb0b3908`, using Codex CLI `0.148.0-alpha.15`, passed three positive and three negative repetitions, bounded delegation, failed-evidence refusal, all scorer gates, and state restoration in sixteen authenticated turns.
 
-The current dual-command Core candidate has SHA-256 `898fe4c444d44439c011697d78f86c289a1615b736f9324d6a308c05c139deed`. Its only member changes from the preceding candidate are the `verify-before-completion` skill contract and its packaged evidence gate.
+The published package hashes are:
+
+| Package | SHA-256 |
+|---|---|
+| `engineering-foundation-core-0.3.0-beta.2.zip` | `898fe4c444d44439c011697d78f86c289a1615b736f9324d6a308c05c139deed` |
+| `engineering-foundation-laravel-0.2.1.zip` | `64fb34691d66b7051c77c0a90058631ef7e0b308cd010878777642696d65a79c` |
+| `engineering-foundation-design-0.2.1.zip` | `3f7d5f37d264e7aa1d2ab94dea12a62806e5cef1728225319845429a33a63296` |
+| `engineering-foundation-cloud-0.2.1.zip` | `4fe88385d98e3ef2b36aa2b304b891c76db61db99f88480e211efb6b7a575982` |
+| `engineering-foundation-authoring-0.2.1.zip` | `cbd7906aa03af50e850b253f4ecf17ced202b126f4fa33ba120036f5f196f07b` |
+
+Qualification is `PARTIAL`, not full cross-client qualification. ChatGPT/Codex desktop, Codex Cloud, authenticated Claude Code, and the Agent Plugins reference client remain `NOT_RUN`.
 
 The unreleased structured-receipt candidate built before runner and child command identities were separated had SHA-256 `69444e865337c823312a6882b6373c9682e479f9c72a60a8f4a03f0bbeaae1a0`. The earlier H02/H03/H04 candidate built before the structured verifier receipt boundary had SHA-256 `a505d9d7d376ace3f2cd5fd5369dc417d0067a4eb03d2b5141276378e0065941`. Both digests remain historical qualification evidence only; neither was published.
 
