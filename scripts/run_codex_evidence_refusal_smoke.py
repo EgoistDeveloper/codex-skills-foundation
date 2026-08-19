@@ -22,7 +22,7 @@ import time
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -186,20 +186,26 @@ def canonical_verifier_command(argv: object, *, cwd: object = None) -> str:
     ):
         raise base.HarnessError("verifier argv must be a non-empty string vector")
     rendered = list(argv)
-    executable_name = Path(rendered[0]).name
+    executable_name = PureWindowsPath(rendered[0]).name
     if executable_name.lower().endswith(".exe"):
         executable_name = executable_name[:-4]
     rendered[0] = executable_name
     if isinstance(cwd, str) and cwd:
-        cwd_path = Path(cwd)
-        for index in range(1, len(rendered)):
-            candidate = Path(rendered[index])
-            if not candidate.is_absolute():
-                continue
-            try:
-                rendered[index] = candidate.relative_to(cwd_path).as_posix()
-            except ValueError:
-                pass
+        path_type: type[PureWindowsPath] | type[PurePosixPath] | None = None
+        if PureWindowsPath(cwd).is_absolute():
+            path_type = PureWindowsPath
+        elif PurePosixPath(cwd).is_absolute():
+            path_type = PurePosixPath
+        if path_type is not None:
+            cwd_path = path_type(cwd)
+            for index in range(1, len(rendered)):
+                candidate = path_type(rendered[index])
+                if not candidate.is_absolute():
+                    continue
+                try:
+                    rendered[index] = candidate.relative_to(cwd_path).as_posix()
+                except ValueError:
+                    pass
     return shlex.join(rendered)
 
 

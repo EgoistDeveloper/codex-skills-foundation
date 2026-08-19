@@ -604,6 +604,17 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
             evidence_harness.argv_sha256(argv),
             hashlib.sha256(canonical(argv).encode()).hexdigest(),
         )
+        posix_argv = [
+            "/usr/bin/node",
+            "/candidate/workspace/verify-release.mjs",
+        ]
+        self.assertEqual(
+            evidence_harness.canonical_verifier_command(
+                posix_argv,
+                cwd="/candidate/workspace",
+            ),
+            "node verify-release.mjs",
+        )
 
     def test_non_event_claims_and_echoed_receipts_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
