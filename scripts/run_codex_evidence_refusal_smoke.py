@@ -362,14 +362,23 @@ def require_effective_receipt_sandbox(
     raw_roots = sandbox.get("writableRoots")
     if not isinstance(raw_roots, list) or not all(isinstance(item, str) for item in raw_roots):
         raise base.HarnessError("thread sandbox returned invalid writable roots")
-    expected = [] if writable_root is None else [base.normalized_path(writable_root)]
-    actual = [base.normalized_path(item) for item in raw_roots]
-    if actual != expected:
+    if writable_root is None:
+        roots_match = not raw_roots
+    else:
+        roots_match = (
+            len(raw_roots) == 1
+            and base.same_existing_directory(raw_roots[0], writable_root)
+        )
+    if not roots_match:
         raise base.HarnessError(
             "thread sandbox writable roots differ from the exact receipt boundary"
         )
     if writable_root is not None:
         try:
+            base.qualification_workspace.reject_linked_components(
+                Path(raw_roots[0]),
+                label="reported effective receipt writable root",
+            )
             base.qualification_workspace.reject_linked_components(
                 writable_root,
                 label="effective receipt writable root",

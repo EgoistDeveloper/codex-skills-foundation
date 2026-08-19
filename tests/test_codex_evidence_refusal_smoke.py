@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import importlib.util
 import json
 import os
@@ -343,6 +344,27 @@ class CodexEvidenceRefusalSmokeTests(unittest.TestCase):
             }
             with self.assertRaises(module.base.HarnessError):
                 module.require_effective_receipt_sandbox(nested_only, writable_root)
+
+    @unittest.skipUnless(os.name == "nt", "Windows 8.3 aliases require Windows")
+    def test_effective_sandbox_accepts_short_alias_for_the_same_root(self) -> None:
+        long_root = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Common Files"
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(
+            str(long_root), buffer, len(buffer)
+        )
+        short_root = Path(buffer.value) if length else long_root
+        if os.path.normcase(str(short_root)) == os.path.normcase(str(long_root)):
+            self.skipTest("Program Files did not provide a distinct 8.3 alias")
+
+        thread_result = {
+            "thread": {"id": "thread-fixture"},
+            "sandbox": {
+                "type": "workspaceWrite",
+                "networkAccess": False,
+                "writableRoots": [str(long_root)],
+            },
+        }
+        module.require_effective_receipt_sandbox(thread_result, short_root)
 
     def test_linked_receipt_parent_is_rejected_before_thread_start(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
