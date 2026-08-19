@@ -40,6 +40,11 @@ jobs:
         run: python -m pip install --requirement requirements-dev.txt
       - name: Run complete bootstrap
         run: python scripts/bootstrap.py
+      - name: Resolve exact candidate subject
+        id: candidate-subject
+        run: python scripts/ci_candidate_subject.py --tag v0.3.0-beta.2
+      - name: Bind exact package identity to its subject commit
+        run: git switch -c h04-ci-package-subject ${{ steps.candidate-subject.outputs.commit }}
       - name: Build exact release-candidate identity
         run: python scripts/release_candidate.py build --artifacts dist
       - name: Upload release packages
@@ -110,6 +115,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Bind exact workflow commit to a local candidate branch
         run: git switch -c h04-ci-candidate
+      - name: Resolve exact candidate subject
+        id: candidate-subject
+        run: python scripts/ci_candidate_subject.py --tag v0.3.0-beta.2
+      - name: Bind exact package identity to its subject commit
+        run: git switch -c h04-ci-package-subject ${{ steps.candidate-subject.outputs.commit }}
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
