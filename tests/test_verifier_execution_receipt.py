@@ -346,6 +346,9 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
                 self.skipTest("the test volume did not provide a distinct 8.3 alias")
             observation = fixture.observe(result, cwd=buffer.value)
             self.assertTrue(observation.valid, observation.findings)
+            self.assertTrue(
+                evidence_harness.base.path_is_under(fixture.verifier, buffer.value)
+            )
 
     def test_packaged_runner_and_contract_are_present(self) -> None:
         self.assertTrue(RUNNER.is_file())

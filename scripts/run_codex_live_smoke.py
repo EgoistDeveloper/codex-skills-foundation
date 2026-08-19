@@ -227,10 +227,11 @@ def same_existing_directory(left: object, right: object) -> bool:
 
 def path_is_under(path: str | Path, root: str | Path) -> bool:
     try:
-        return os.path.commonpath([normalized_path(path), normalized_path(root)]) == normalized_path(
-            root
-        )
-    except ValueError:
+        resolved_path = Path(path).resolve(strict=True)
+        resolved_root = Path(root).resolve(strict=True)
+        resolved_path.relative_to(resolved_root)
+        return True
+    except (OSError, ValueError):
         return False
 
 

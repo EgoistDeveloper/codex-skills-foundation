@@ -727,14 +727,10 @@ def main() -> int:
                         f"actual={sorted(discovered)}, "
                         f"expected={sorted(candidate_expected_skills)}"
                     )
-                normalized_home = base.normalized_path(codex_home)
                 outside_paths = {
                     name: path
                     for name, path in discovered_paths.items()
-                    if os.path.commonpath(
-                        [base.normalized_path(path), normalized_home]
-                    )
-                    != normalized_home
+                    if not base.path_is_under(path, codex_home)
                 }
                 if outside_paths:
                     raise LifecycleError(
