@@ -132,6 +132,25 @@ class QualificationWorkspaceTests(unittest.TestCase):
             mapping = json.loads(lease.mapping_path.read_text(encoding="utf-8"))
             self.assertEqual(mapping["cleanup_status"], "CLEANED")
 
+    @unittest.skipUnless(os.name == "nt", "Windows 8.3 aliases require Windows")
+    def test_managed_workspace_accepts_short_root_alias(self) -> None:
+        import ctypes
+
+        long_root = Path(os.environ["ProgramFiles"])
+        child = long_root / "Common Files"
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(
+            str(long_root), buffer, len(buffer)
+        )
+        if length == 0 or buffer.value.casefold() == str(long_root).casefold():
+            self.skipTest("Program Files did not provide a distinct 8.3 alias")
+
+        managed = workspace.managed_workspace_root(
+            child,
+            disposable_root=Path(buffer.value),
+        )
+        self.assertEqual(managed, child.resolve(strict=True))
+
     def test_identity_dimensions_do_not_collide(self) -> None:
         base = {"campaign": "campaign", "family": "positive"}
         identities = [

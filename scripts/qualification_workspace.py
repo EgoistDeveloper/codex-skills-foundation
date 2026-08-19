@@ -133,6 +133,18 @@ def _relative_to(path: Path, root: Path, *, label: str) -> Path:
         ) from exc
 
 
+def _resolved_relative_to(path: Path, root: Path, *, label: str) -> Path:
+    try:
+        resolved_path = path.resolve(strict=True)
+        resolved_root = root.resolve(strict=True)
+        return resolved_path.relative_to(resolved_root)
+    except (OSError, ValueError) as exc:
+        raise WorkspacePathError(
+            f"{label} is outside the qualification disposable root",
+            label=label,
+        ) from exc
+
+
 def _clean_identity(identity: dict[str, object]) -> dict[str, str | int]:
     if not isinstance(identity, dict):
         raise WorkspaceError("workspace identity must be an object")
@@ -467,9 +479,9 @@ def allocate_workspace(
 def managed_workspace_root(path: Path, *, disposable_root: Path | None = None) -> Path:
     root = Path(os.path.abspath(disposable_root or default_disposable_root()))
     candidate = Path(os.path.abspath(path))
-    _relative_to(candidate, root, label="managed qualification workspace")
     reject_linked_components(root, label="qualification disposable root")
     reject_linked_components(candidate, label="managed qualification workspace")
+    _resolved_relative_to(candidate, root, label="managed qualification workspace")
     if not candidate.is_dir():
         raise WorkspacePathError(
             "managed qualification workspace is not a directory",
