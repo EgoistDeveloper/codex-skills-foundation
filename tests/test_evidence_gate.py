@@ -79,7 +79,26 @@ class EvidenceGateTests(unittest.TestCase):
             "payload_sha256": "a" * 64,
             "child_exit_code": 0,
         }
+        command["verifier_argv"] = ["python", "verify.py"]
         self.assertEqual(module.validate(data, self.contract()), [])
+
+        missing_argv = self.fixture("completion-evidence.pass.json")
+        missing_argv["items"][0]["evidence"][0]["receipt"] = {
+            "run_id": "run-1",
+            "command_id": "command-1",
+            "payload_sha256": "a" * 64,
+            "child_exit_code": 0,
+        }
+        errors = module.validate(missing_argv, self.contract())
+        self.assertTrue(any("verifier_argv" in error for error in errors), errors)
+
+        argv_without_receipt = self.fixture("completion-evidence.pass.json")
+        argv_without_receipt["items"][0]["evidence"][0]["verifier_argv"] = [
+            "python",
+            "verify.py",
+        ]
+        errors = module.validate(argv_without_receipt, self.contract())
+        self.assertTrue(any("requires" in error for error in errors), errors)
 
         for field, value in (
             ("run_id", ""),
@@ -96,6 +115,10 @@ class EvidenceGateTests(unittest.TestCase):
                     "child_exit_code": 0,
                     field: value,
                 }
+                invalid["items"][0]["evidence"][0]["verifier_argv"] = [
+                    "python",
+                    "verify.py",
+                ]
                 self.assertTrue(module.validate(invalid, self.contract()))
 
     def test_artifact_path_is_bounded_and_must_exist_when_workspace_is_supplied(self) -> None:

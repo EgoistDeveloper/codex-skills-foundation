@@ -24,6 +24,7 @@ EVIDENCE_FIELDS = {
     "type",
     "summary",
     "command",
+    "verifier_argv",
     "fresh",
     "exit_code",
     "artifact_path",
@@ -264,8 +265,21 @@ def validate(
                             errors.append(
                                 f"{label}.receipt.child_exit_code must match exit_code"
                             )
+                    verifier_argv = record.get("verifier_argv")
+                    if (
+                        not isinstance(verifier_argv, list)
+                        or not verifier_argv
+                        or any(not _nonempty_string(value) for value in verifier_argv)
+                    ):
+                        errors.append(
+                            f"{label}.verifier_argv must be the exact non-empty receipt child argv"
+                        )
+                elif "verifier_argv" in record:
+                    errors.append(
+                        f"{label}.verifier_argv requires a structured execution receipt"
+                    )
             else:
-                for field in ("command", "fresh", "exit_code", "receipt"):
+                for field in ("command", "verifier_argv", "fresh", "exit_code", "receipt"):
                     if field in record:
                         errors.append(f"{label}.{field} is only valid for command evidence")
 

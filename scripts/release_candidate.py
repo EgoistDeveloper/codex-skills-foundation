@@ -39,7 +39,7 @@ WINDOWS_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
 
 EXPECTED_PACKAGE_HASHES = {
     "engineering-foundation-core": (
-        "69444e865337c823312a6882b6373c9682e479f9c72a60a8f4a03f0bbeaae1a0"
+        "898fe4c444d44439c011697d78f86c289a1615b736f9324d6a308c05c139deed"
     ),
     "engineering-foundation-laravel": (
         "64fb34691d66b7051c77c0a90058631ef7e0b308cd010878777642696d65a79c"
@@ -821,6 +821,10 @@ def verify_live_row(
             "verifier_receipt_command_id",
             "verifier_receipt_payload_sha256",
             "verifier_receipt_event_id",
+            "verifier_receipt_execution_argv_sha256",
+            "verifier_receipt_child_argv_sha256",
+            "verifier_receipt_verifier_sha256",
+            "verifier_receipt_canonical_command",
         ):
             value = row.get(field)
             if not isinstance(value, str) or not value:
@@ -832,6 +836,19 @@ def verify_live_row(
         ):
             raise CandidateError(
                 "evidence-refusal live row receipt payload SHA-256 is invalid"
+            )
+        for field in (
+            "verifier_receipt_execution_argv_sha256",
+            "verifier_receipt_child_argv_sha256",
+            "verifier_receipt_verifier_sha256",
+        ):
+            if not SHA256_RE.fullmatch(str(row.get(field))):
+                raise CandidateError(
+                    f"evidence-refusal live row {field} is invalid"
+                )
+        if type(row.get("verifier_receipt_child_exit_code")) is not int:
+            raise CandidateError(
+                "evidence-refusal live row child exit code is invalid"
             )
 
 

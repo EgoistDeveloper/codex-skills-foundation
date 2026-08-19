@@ -603,7 +603,7 @@ def main() -> int:
         ("debug-before-fix", 2),
         ("tiny-edit-skips-plan", 6),
         ("bounded-read-only-delegation", 5),
-        ("required-evidence-refusal", 1),
+        ("required-evidence-refusal", 2),
     }
     if set(case_inventory) != expected_cases:
         raise QualificationError(

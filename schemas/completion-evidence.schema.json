@@ -103,7 +103,17 @@
                 },
                 "command": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "description": "The verifier command. For receipt-backed evidence this is the deterministic human-readable rendering of receipt child.argv, not the receipt-runner invocation."
+                },
+                "verifier_argv": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": "Exact child argv from the structured receipt. Required only for receipt-backed command evidence."
                 },
                 "fresh": {
                   "type": "boolean"
@@ -118,6 +128,7 @@
                 "receipt": {
                   "type": "object",
                   "additionalProperties": false,
+                  "description": "Identity of the trusted receipt-runner execution transport, kept separate from the child verifier command.",
                   "required": [
                     "run_id",
                     "command_id",
@@ -161,6 +172,40 @@
                       "fresh",
                       "exit_code"
                     ]
+                  }
+                },
+                {
+                  "if": {
+                    "required": [
+                      "receipt"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "verifier_argv"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "command"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "required": [
+                      "verifier_argv"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "receipt"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "command"
+                      }
+                    }
                   }
                 },
                 {

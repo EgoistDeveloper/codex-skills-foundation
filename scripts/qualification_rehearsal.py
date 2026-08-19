@@ -116,7 +116,10 @@ def _blocked_packet(expectation: evidence.ReceiptExpectation, receipt: dict[str,
                     {
                         "type": "command",
                         "summary": "fresh attestation verifier",
-                        "command": evidence.VERIFY_COMMAND,
+                        "command": evidence.canonical_verifier_command(
+                            receipt["child"]["argv"], cwd=receipt["child"]["cwd"]
+                        ),
+                        "verifier_argv": receipt["child"]["argv"],
                         "fresh": True,
                         "exit_code": receipt["child"]["exit_code"],
                         "receipt": {

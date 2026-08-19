@@ -856,6 +856,11 @@ class ReleaseCandidateRedTests(unittest.TestCase):
                 "verifier_receipt_command_id": "command-1",
                 "verifier_receipt_payload_sha256": "a" * 64,
                 "verifier_receipt_event_id": "event-1",
+                "verifier_receipt_execution_argv_sha256": "b" * 64,
+                "verifier_receipt_child_argv_sha256": "c" * 64,
+                "verifier_receipt_verifier_sha256": "d" * 64,
+                "verifier_receipt_child_exit_code": 2,
+                "verifier_receipt_canonical_command": "node verify-release.mjs",
             }
         )
         self.module.verify_live_row(payload, row, sha256(manifest))

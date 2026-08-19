@@ -154,6 +154,25 @@
     "verifier_receipt_event_id": {
       "type": "string",
       "minLength": 1
+    },
+    "verifier_receipt_execution_argv_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "verifier_receipt_child_argv_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "verifier_receipt_verifier_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "verifier_receipt_child_exit_code": {
+      "type": "integer"
+    },
+    "verifier_receipt_canonical_command": {
+      "type": "string",
+      "minLength": 1
     }
   },
   "allOf": [
@@ -171,7 +190,12 @@
           "verifier_receipt_run_id",
           "verifier_receipt_command_id",
           "verifier_receipt_payload_sha256",
-          "verifier_receipt_event_id"
+          "verifier_receipt_event_id",
+          "verifier_receipt_execution_argv_sha256",
+          "verifier_receipt_child_argv_sha256",
+          "verifier_receipt_verifier_sha256",
+          "verifier_receipt_child_exit_code",
+          "verifier_receipt_canonical_command"
         ]
       }
     }

@@ -23,6 +23,9 @@ SPEC.loader.exec_module(module)
 
 
 class CodexEvidenceRefusalSmokeTests(unittest.TestCase):
+    def test_case_revision_is_two_for_dual_command_contract(self) -> None:
+        self.assertEqual(module.CASE_REVISION, 2)
+
     def receipt_expectation(self, root: Path) -> SimpleNamespace:
         run_root = root / "campaign"
         receipt_parent = run_root / "receipt-outputs"

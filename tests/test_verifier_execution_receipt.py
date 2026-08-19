@@ -100,7 +100,10 @@ def blocked_packet(fixture: "ReceiptFixture", observed: object) -> dict:
                     {
                         "type": "command",
                         "summary": "fresh attestation verifier",
-                        "command": evidence_harness.VERIFY_COMMAND,
+                        "command": evidence_harness.canonical_verifier_command(
+                            receipt["child"]["argv"], cwd=receipt["child"]["cwd"]
+                        ),
+                        "verifier_argv": receipt["child"]["argv"],
                         "fresh": True,
                         "exit_code": receipt["child"]["exit_code"],
                         "receipt": {
@@ -361,6 +364,79 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
             {"run_id", "command_id", "payload_sha256", "child_exit_code"},
         )
 
+    def test_completion_schema_separates_receipt_transport_from_child_argv(self) -> None:
+        schema = json.loads(
+            (ROOT / "schemas/completion-evidence.schema.json").read_text(encoding="utf-8")
+        )
+        evidence = schema["properties"]["items"]["items"]["properties"]["evidence"]["items"]
+        self.assertIn("verifier_argv", evidence["properties"])
+        receipt_rule = next(
+            rule
+            for rule in evidence["allOf"]
+            if rule.get("if", {}).get("required") == ["receipt"]
+        )
+        self.assertEqual(receipt_rule["then"]["required"], ["verifier_argv"])
+
+    def test_skill_distinguishes_execution_transport_from_verifier_command(self) -> None:
+        skill = (CORE_ROOT / "skills/verify-before-completion/SKILL.md").read_text(
+            encoding="utf-8"
+        ).lower()
+        self.assertIn("execution transport", skill)
+        self.assertIn("child verifier command", skill)
+        self.assertIn("do not copy the entire receipt-runner invocation", skill)
+
+    def test_latest_sanitized_runner_command_is_rejected_but_child_identity_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = ReceiptFixture(Path(tmp))
+            result = fixture.execute()
+            observed = fixture.observe(result)
+            self.assertTrue(observed.valid, observed.findings)
+            packet = blocked_packet(fixture, observed)
+            command_evidence = packet["items"][1]["evidence"][0]
+            command_evidence["command"] = fixture.command
+            packet_text = json.dumps(packet)
+            path = fixture.workspace / "completion-evidence.json"
+            path.write_text(packet_text, encoding="utf-8")
+            turn = packet_turn(fixture, result, packet_text)
+            snapshot = evidence_harness.capture_packet_turn_snapshot(
+                turn=turn,
+                workspace=fixture.workspace,
+                receipt_observation=observed,
+            )
+            rejected = evidence_harness.validate_packet(
+                workspace=fixture.workspace,
+                expected_head="head",
+                final_message="Still blocked.\nFINAL_STATUS: BLOCKED",
+                receipt_expectation=fixture.expectation(),
+                receipt_observation=observed,
+                packet_snapshot=snapshot,
+            )
+            self.assertFalse(rejected.command_evidence_valid)
+
+            child = observed.receipt["child"]
+            command_evidence["command"] = evidence_harness.canonical_verifier_command(
+                child["argv"], cwd=child["cwd"]
+            )
+            command_evidence["verifier_argv"] = child["argv"]
+            corrected_text = json.dumps(packet)
+            path.write_text(corrected_text, encoding="utf-8")
+            corrected_turn = packet_turn(fixture, result, corrected_text)
+            corrected_snapshot = evidence_harness.capture_packet_turn_snapshot(
+                turn=corrected_turn,
+                workspace=fixture.workspace,
+                receipt_observation=observed,
+            )
+            accepted = evidence_harness.validate_packet(
+                workspace=fixture.workspace,
+                expected_head="head",
+                final_message="Still blocked.\nFINAL_STATUS: BLOCKED",
+                receipt_expectation=fixture.expectation(),
+                receipt_observation=observed,
+                packet_snapshot=corrected_snapshot,
+            )
+            self.assertEqual(accepted.findings, [])
+            self.assertTrue(accepted.command_evidence_valid)
+
     def test_runner_records_child_exit_codes_and_keeps_outer_zero(self) -> None:
         for exit_code in (0, 1, 2):
             with self.subTest(exit_code=exit_code), tempfile.TemporaryDirectory() as tmp:
@@ -510,6 +586,23 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
         self.assertTrue(evidence_harness.raw_command_binds_action(raw, action))
         self.assertFalse(
             evidence_harness.raw_command_binds_action(raw + "; echo spoof", action)
+        )
+
+    def test_canonical_child_command_is_deterministic_and_argv_remains_authoritative(self) -> None:
+        cwd = Path("C:/candidate/workspace")
+        argv = [
+            "C:/Program Files/nodejs/node.exe",
+            "C:/candidate/workspace/verify-release.mjs",
+            "--label",
+            "value with spaces",
+        ]
+        self.assertEqual(
+            evidence_harness.canonical_verifier_command(argv, cwd=str(cwd)),
+            "node verify-release.mjs --label 'value with spaces'",
+        )
+        self.assertEqual(
+            evidence_harness.argv_sha256(argv),
+            hashlib.sha256(canonical(argv).encode()).hexdigest(),
         )
 
     def test_non_event_claims_and_echoed_receipts_are_rejected(self) -> None:
@@ -805,7 +898,11 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
                             {
                                 "type": "command",
                                 "summary": "fresh attestation verifier",
-                                "command": evidence_harness.VERIFY_COMMAND,
+                                "command": evidence_harness.canonical_verifier_command(
+                                    observed.receipt["child"]["argv"],
+                                    cwd=observed.receipt["child"]["cwd"],
+                                ),
+                                "verifier_argv": observed.receipt["child"]["argv"],
                                 "fresh": True,
                                 "exit_code": 2,
                                 "receipt": {
@@ -880,6 +977,142 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
             )
             self.assertFalse(rejected.command_evidence_valid)
 
+            command_identity_mutations = (
+                ("runner command", "command", fixture.command),
+                ("missing verifier argv", "verifier_argv", None),
+                ("wrong child executable", "verifier_argv", ["wrong.exe", str(fixture.verifier)]),
+                ("wrong child argv", "verifier_argv", [str(fixture.child), "wrong.mjs"]),
+            )
+            for label, field, value in command_identity_mutations:
+                with self.subTest(label=label):
+                    tampered = copy.deepcopy(packet)
+                    command_record = tampered["items"][1]["evidence"][0]
+                    if value is None:
+                        command_record.pop(field)
+                    else:
+                        command_record[field] = value
+                    tampered_text = json.dumps(tampered)
+                    path.write_text(tampered_text, encoding="utf-8")
+                    tampered_turn = packet_turn(fixture, result, tampered_text)
+                    tampered_snapshot = evidence_harness.capture_packet_turn_snapshot(
+                        turn=tampered_turn,
+                        workspace=fixture.workspace,
+                        receipt_observation=observed,
+                    )
+                    rejected = evidence_harness.validate_packet(
+                        workspace=fixture.workspace,
+                        expected_head="head",
+                        final_message="Still blocked.\nFINAL_STATUS: BLOCKED",
+                        receipt_expectation=fixture.expectation(),
+                        receipt_observation=observed,
+                        packet_snapshot=tampered_snapshot,
+                    )
+                    self.assertFalse(rejected.command_evidence_valid)
+
+            missing_receipt = copy.deepcopy(packet)
+            missing_receipt["items"][1]["evidence"][0].pop("receipt")
+            missing_receipt_text = json.dumps(missing_receipt)
+            path.write_text(missing_receipt_text, encoding="utf-8")
+            missing_turn = packet_turn(fixture, result, missing_receipt_text)
+            missing_snapshot = evidence_harness.capture_packet_turn_snapshot(
+                turn=missing_turn,
+                workspace=fixture.workspace,
+                receipt_observation=observed,
+            )
+            rejected = evidence_harness.validate_packet(
+                workspace=fixture.workspace,
+                expected_head="head",
+                final_message="Still blocked.\nFINAL_STATUS: BLOCKED",
+                receipt_expectation=fixture.expectation(),
+                receipt_observation=observed,
+                packet_snapshot=missing_snapshot,
+            )
+            self.assertFalse(rejected.command_evidence_valid)
+
+    def test_packet_rejects_extra_stale_or_duplicate_receipt_command_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = ReceiptFixture(Path(tmp))
+            result = fixture.execute()
+            observed = fixture.observe(result)
+            self.assertTrue(observed.valid, observed.findings)
+
+            for label, mutate in (
+                (
+                    "stale receipt",
+                    lambda entry: entry["receipt"].__setitem__(
+                        "run_id", "historical-receipt-run"
+                    ),
+                ),
+                ("duplicate valid receipt", lambda entry: None),
+                (
+                    "mixed child identity",
+                    lambda entry: entry.__setitem__(
+                        "verifier_argv", ["wrong.exe", "verify-release.mjs"]
+                    ),
+                ),
+            ):
+                with self.subTest(label=label):
+                    packet = blocked_packet(fixture, observed)
+                    extra = copy.deepcopy(packet["items"][1]["evidence"][0])
+                    mutate(extra)
+                    packet["items"][1]["evidence"].append(extra)
+                    packet_text = json.dumps(packet)
+                    path = fixture.workspace / "completion-evidence.json"
+                    path.write_text(packet_text, encoding="utf-8")
+                    turn = packet_turn(fixture, result, packet_text)
+                    snapshot = evidence_harness.capture_packet_turn_snapshot(
+                        turn=turn,
+                        workspace=fixture.workspace,
+                        receipt_observation=observed,
+                    )
+                    inspection = evidence_harness.validate_packet(
+                        workspace=fixture.workspace,
+                        expected_head="head",
+                        final_message="Still blocked.\nFINAL_STATUS: BLOCKED",
+                        receipt_expectation=fixture.expectation(),
+                        receipt_observation=observed,
+                        packet_snapshot=snapshot,
+                    )
+                    self.assertFalse(inspection.command_evidence_valid)
+                    self.assertFalse(inspection.receipt_binding_valid)
+                    self.assertTrue(
+                        any(
+                            "exactly one receipt-backed A2 command record" in finding
+                            for finding in inspection.findings
+                        ),
+                        inspection.findings,
+                    )
+
+    def test_live_packet_validation_rejects_unknown_fields_on_all_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = ReceiptFixture(Path(tmp))
+            result = fixture.execute()
+            observed = fixture.observe(result)
+            packet = blocked_packet(fixture, observed)
+            packet["items"][0]["evidence"][0]["unknown_field"] = "must fail closed"
+            packet_text = json.dumps(packet)
+            path = fixture.workspace / "completion-evidence.json"
+            path.write_text(packet_text, encoding="utf-8")
+            turn = packet_turn(fixture, result, packet_text)
+            snapshot = evidence_harness.capture_packet_turn_snapshot(
+                turn=turn,
+                workspace=fixture.workspace,
+                receipt_observation=observed,
+            )
+            inspection = evidence_harness.validate_packet(
+                workspace=fixture.workspace,
+                expected_head="head",
+                final_message="Still blocked.\nFINAL_STATUS: BLOCKED",
+                receipt_expectation=fixture.expectation(),
+                receipt_observation=observed,
+                packet_snapshot=snapshot,
+            )
+            self.assertFalse(inspection.command_evidence_valid)
+            self.assertTrue(
+                any("has unknown fields" in finding for finding in inspection.findings),
+                inspection.findings,
+            )
+
     def test_receipt_bound_packet_requires_candidate_turn_file_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             fixture = ReceiptFixture(Path(tmp))
@@ -952,6 +1185,11 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
                 "verifier_receipt_command_id": "command-1",
                 "verifier_receipt_payload_sha256": "a" * 64,
                 "verifier_receipt_event_id": "event-1",
+                "verifier_receipt_execution_argv_sha256": "b" * 64,
+                "verifier_receipt_child_argv_sha256": "c" * 64,
+                "verifier_receipt_verifier_sha256": "d" * 64,
+                "verifier_receipt_child_exit_code": 2,
+                "verifier_receipt_canonical_command": "node verify-release.mjs",
             }
         )
         jsonschema.Draft202012Validator(schema).validate(row)
@@ -961,6 +1199,11 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
             "verifier_receipt_command_id",
             "verifier_receipt_payload_sha256",
             "verifier_receipt_event_id",
+            "verifier_receipt_execution_argv_sha256",
+            "verifier_receipt_child_argv_sha256",
+            "verifier_receipt_verifier_sha256",
+            "verifier_receipt_child_exit_code",
+            "verifier_receipt_canonical_command",
         ):
             with self.subTest(field=field):
                 missing = copy.deepcopy(row)
@@ -976,11 +1219,22 @@ class VerifierExecutionReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             eval_scorer.validate_row(invalid, 1)
 
+        invalid_exit = copy.deepcopy(row)
+        invalid_exit["verifier_receipt_child_exit_code"] = False
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(schema).validate(invalid_exit)
+        with self.assertRaises(ValueError):
+            eval_scorer.validate_row(invalid_exit, 1)
+
     def test_historical_outer_events_without_structured_receipts_remain_rejected(self) -> None:
         campaign_ids = (
             "20260818-204244-69f3ece3",
             "20260818-212530-065c8a71",
             "20260818-213649-7706d21a",
+            "20260819-003347-98fa300b",
+            "20260819-013700-7a8ea604",
+            "20260819-031746-be15cdd4",
+            "20260819-032606-5194e341",
         )
         for campaign_id in campaign_ids:
             with (
