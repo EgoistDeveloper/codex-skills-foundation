@@ -302,6 +302,12 @@ class CodexEvidenceRefusalSmokeTests(unittest.TestCase):
             candidate["sandbox_workspace_write"],
             {"network_access": False, "writable_roots": [str(writable_root)]},
         )
+        if os.name == "nt":
+            self.assertEqual(baseline["windows"], {"sandbox": "elevated"})
+            self.assertEqual(candidate["windows"], {"sandbox": "elevated"})
+        else:
+            self.assertNotIn("windows", baseline)
+            self.assertNotIn("windows", candidate)
 
     def test_effective_candidate_sandbox_requires_the_exact_narrow_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

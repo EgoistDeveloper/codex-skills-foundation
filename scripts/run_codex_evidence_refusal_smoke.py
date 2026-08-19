@@ -395,6 +395,8 @@ def configure_receipt_sandbox(
         "network_access": False,
         "writable_roots": [] if writable_root is None else [str(writable_root)],
     }
+    if os.name == "nt":
+        config["windows"] = {"sandbox": "elevated"}
 
 
 def candidate_live_prompt(expectation: ReceiptExpectation) -> str:
