@@ -19,6 +19,9 @@ import jsonschema
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "scripts/release_candidate.py"
 QUALIFICATION_PATH = ROOT / "scripts/run_exact_artifact_qualification.py"
+SCRIPT_DIR = ROOT / "scripts"
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 
 def load_module():
@@ -198,6 +201,34 @@ class ReleaseCandidateRedTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.fixture = CandidateFixture(Path(self.temporary.name))
+
+    @unittest.skipUnless(os.name == "nt", "Windows 8.3 aliases require Windows")
+    def test_regular_file_hash_accepts_short_root_alias(self) -> None:
+        import ctypes
+        import shutil
+
+        long_root = Path(os.environ["ProgramFiles"])
+        executable = Path(shutil.which("git") or "").resolve(strict=True)
+        try:
+            executable.relative_to(long_root.resolve(strict=True))
+        except ValueError:
+            self.skipTest("Git executable is not installed below Program Files")
+
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetShortPathNameW(
+            str(long_root), buffer, len(buffer)
+        )
+        if length == 0 or buffer.value.casefold() == str(long_root).casefold():
+            self.skipTest("Program Files did not provide a distinct 8.3 alias")
+
+        self.assertEqual(
+            self.module.regular_file_sha256(
+                executable,
+                Path(buffer.value),
+                label="fixture verifier",
+            ),
+            sha256(executable),
+        )
 
     def test_package_evidence_from_wrong_commit_is_rejected(self) -> None:
         manifest, _ = self.fixture.manifest(self.module)

@@ -1037,19 +1037,16 @@ def regular_file_sha256(path: Path, root: Path, *, label: str) -> str:
     """Hash one unchanged, unlinked regular file below an exact root."""
     lexical_root = Path(os.path.abspath(root))
     lexical_path = Path(os.path.abspath(path))
-    try:
-        relative = lexical_path.relative_to(lexical_root)
-    except ValueError as exc:
-        raise CandidateError(f"{label} escapes its artifact directory: {path}") from exc
-
     for component in reversed((lexical_root, *lexical_root.parents)):
         _reject_link_or_reparse(component)
-    current = lexical_root
-    for part in relative.parts:
-        current /= part
-        _reject_link_or_reparse(current)
+    for component in reversed((lexical_path, *lexical_path.parents)):
+        _reject_link_or_reparse(component)
 
     resolved_root = lexical_root.resolve(strict=True)
+    try:
+        lexical_path.resolve(strict=True).relative_to(resolved_root)
+    except (OSError, ValueError) as exc:
+        raise CandidateError(f"{label} escapes its artifact directory: {path}") from exc
     resolved = _require_regular_artifact(lexical_path, resolved_root, label=label)
     before = resolved.stat()
     digest = sha256_file(resolved)
