@@ -209,6 +209,23 @@ def canonical_verifier_command(argv: object, *, cwd: object = None) -> str:
     return shlex.join(rendered)
 
 
+def same_existing_directory(left: object, right: object) -> bool:
+    if not isinstance(left, (str, os.PathLike)) or not isinstance(
+        right, (str, os.PathLike)
+    ):
+        return False
+    try:
+        left_path = Path(left)
+        right_path = Path(right)
+        return (
+            left_path.is_dir()
+            and right_path.is_dir()
+            and os.path.samefile(left_path, right_path)
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def argv_sha256(argv: object) -> str:
     if not isinstance(argv, (list, tuple)) or not argv or not all(
         isinstance(value, str) and value for value in argv
@@ -1166,9 +1183,7 @@ def observe_verifier_receipt(
             findings.append("receipt runner command event was not emitted by the agent")
         if not command.event_id:
             findings.append("receipt runner command event omitted its event id")
-        if command.cwd is None or base.normalized_path(command.cwd) != base.normalized_path(
-            expectation.workspace
-        ):
+        if not same_existing_directory(command.cwd, expectation.workspace):
             findings.append("receipt runner command event used the wrong cwd")
         receipt, parse_findings = _receipt_payload(command)
         findings.extend(parse_findings)

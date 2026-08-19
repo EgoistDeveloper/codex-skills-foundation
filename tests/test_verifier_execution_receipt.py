@@ -331,6 +331,22 @@ class ReceiptFixture:
 
 
 class VerifierExecutionReceiptTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows 8.3 path aliases are Windows-only")
+    def test_observer_accepts_windows_short_path_for_the_same_workspace(self) -> None:
+        import ctypes
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = ReceiptFixture(Path(tmp))
+            result = fixture.execute()
+            buffer = ctypes.create_unicode_buffer(32768)
+            length = ctypes.windll.kernel32.GetShortPathNameW(
+                str(fixture.workspace), buffer, len(buffer)
+            )
+            if length == 0 or buffer.value == str(fixture.workspace):
+                self.skipTest("the test volume did not provide a distinct 8.3 alias")
+            observation = fixture.observe(result, cwd=buffer.value)
+            self.assertTrue(observation.valid, observation.findings)
+
     def test_packaged_runner_and_contract_are_present(self) -> None:
         self.assertTrue(RUNNER.is_file())
         required = package_plugins.REQUIRED_PLUGIN_FILES["engineering-foundation-core"]
