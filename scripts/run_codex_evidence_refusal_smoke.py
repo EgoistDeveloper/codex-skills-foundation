@@ -282,6 +282,82 @@ def create_receipt_expectation(
     )
 
 
+def receipt_writable_root(expectation: ReceiptExpectation) -> Path:
+    """Return the one durable receipt directory the candidate may write."""
+    run_root = Path(os.path.abspath(expectation.run_root))
+    output_directory = Path(os.path.abspath(expectation.output_directory))
+    expected_parent = run_root / "receipt-outputs"
+    if output_directory.parent != expected_parent:
+        raise base.HarnessError(
+            "receipt output must be one fresh command directory below receipt-outputs"
+        )
+    try:
+        base.qualification_workspace.reject_linked_components(
+            run_root,
+            label="receipt campaign root",
+        )
+        base.qualification_workspace.reject_linked_components(
+            expected_parent,
+            label="receipt writable root",
+        )
+        run_resolved = run_root.resolve(strict=True)
+        parent_resolved = expected_parent.resolve(strict=True)
+        parent_resolved.relative_to(run_resolved)
+    except (OSError, ValueError, base.qualification_workspace.WorkspacePathError) as exc:
+        raise base.HarnessError(f"unsafe receipt writable root: {exc}") from exc
+    if parent_resolved.parent != run_resolved or parent_resolved.name != "receipt-outputs":
+        raise base.HarnessError("receipt writable root is broader than the fresh receipt parent")
+    return parent_resolved
+
+
+def require_effective_receipt_sandbox(
+    thread_result: dict[str, Any],
+    writable_root: Path | None,
+) -> None:
+    """Fail before a model turn unless App Server applied the exact sandbox roots."""
+    sandbox = thread_result.get("sandbox")
+    if not isinstance(sandbox, dict) or sandbox.get("type") != "workspaceWrite":
+        raise base.HarnessError("thread did not use the required workspace-write sandbox")
+    if sandbox.get("networkAccess") is not False:
+        raise base.HarnessError("thread sandbox unexpectedly enabled network access")
+    raw_roots = sandbox.get("writableRoots")
+    if not isinstance(raw_roots, list) or not all(isinstance(item, str) for item in raw_roots):
+        raise base.HarnessError("thread sandbox returned invalid writable roots")
+    expected = [] if writable_root is None else [base.normalized_path(writable_root)]
+    actual = [base.normalized_path(item) for item in raw_roots]
+    if actual != expected:
+        raise base.HarnessError(
+            "thread sandbox writable roots differ from the exact receipt boundary"
+        )
+    if writable_root is not None:
+        try:
+            base.qualification_workspace.reject_linked_components(
+                writable_root,
+                label="effective receipt writable root",
+            )
+        except (OSError, base.qualification_workspace.WorkspacePathError) as exc:
+            raise base.HarnessError(f"unsafe effective receipt writable root: {exc}") from exc
+
+
+def configure_receipt_sandbox(
+    config: dict[str, Any],
+    writable_root: Path | None,
+) -> None:
+    if writable_root is not None:
+        try:
+            base.qualification_workspace.reject_linked_components(
+                writable_root,
+                label="configured receipt writable root",
+            )
+            writable_root = writable_root.resolve(strict=True)
+        except (OSError, base.qualification_workspace.WorkspacePathError) as exc:
+            raise base.HarnessError(f"unsafe configured receipt writable root: {exc}") from exc
+    config["sandbox_workspace_write"] = {
+        "network_access": False,
+        "writable_roots": [] if writable_root is None else [str(writable_root)],
+    }
+
+
 def candidate_live_prompt(expectation: ReceiptExpectation) -> str:
     return (
         LIVE_PROMPT
@@ -597,6 +673,7 @@ def session_config(
     disabled_mcp_names: list[str],
     plugin_ids: list[str],
     enable_core: bool,
+    receipt_expectation: ReceiptExpectation | None = None,
 ) -> dict[str, Any]:
     config = safe_session_builder(
         disabled_skill_paths=disabled_skill_paths,
@@ -627,6 +704,14 @@ def session_config(
         "use_memories": False,
         "dedicated_tools": False,
     }
+    writable_root = (
+        receipt_writable_root(receipt_expectation)
+        if receipt_expectation is not None
+        else None
+    )
+    if receipt_expectation is not None and not enable_core:
+        raise base.HarnessError("receipt writable root is allowed only for the Core candidate")
+    configure_receipt_sandbox(config, writable_root)
     return config
 
 
@@ -644,6 +729,7 @@ def run_variant(
     session_config_value: dict[str, Any],
     explicit_skill: tuple[str, str] | None,
     prompt: str = LIVE_PROMPT,
+    receipt_writable_root_value: Path | None = None,
 ) -> tuple[base.LiveTurn, Path]:
     started = time.monotonic()
     with base.AppServer(
@@ -664,6 +750,7 @@ def run_variant(
         thread = thread_result.get("thread")
         if not isinstance(thread, dict) or not isinstance(thread.get("id"), str):
             raise base.HarnessError("thread/start returned no thread id.")
+        require_effective_receipt_sandbox(thread_result, receipt_writable_root_value)
         turn_id, events, _ = server.start_turn(
             thread_id=str(thread["id"]),
             prompt=prompt,
@@ -2167,13 +2254,6 @@ def main() -> int:
                 for path in base.enabled_skill_paths(candidate_skills)
                 if base.normalized_path(path) != selected_path
             ]
-            candidate_config = session_config(
-                safe_session_builder=safe_session_builder,
-                disabled_skill_paths=candidate_disabled_skills,
-                disabled_mcp_names=disabled_mcp_names,
-                plugin_ids=plugin_ids,
-                enable_core=True,
-            )
             receipt_expectation = create_receipt_expectation(
                 campaign=campaign,
                 campaign_id=campaign_id,
@@ -2181,6 +2261,15 @@ def main() -> int:
                 installed_plugin_root=installed_root,
                 skill_path=selected_skill[1],
                 node_executable=launchers.node_executable,
+            )
+            candidate_receipt_root = receipt_writable_root(receipt_expectation)
+            candidate_config = session_config(
+                safe_session_builder=safe_session_builder,
+                disabled_skill_paths=candidate_disabled_skills,
+                disabled_mcp_names=disabled_mcp_names,
+                plugin_ids=plugin_ids,
+                enable_core=True,
+                receipt_expectation=receipt_expectation,
             )
 
             print("[2/2] Running explicit verify-before-completion candidate...")
@@ -2197,6 +2286,7 @@ def main() -> int:
                 session_config_value=candidate_config,
                 explicit_skill=selected_skill,
                 prompt=candidate_live_prompt(receipt_expectation),
+                receipt_writable_root_value=candidate_receipt_root,
             )
             if base.normalized_path(candidate_home) != base.normalized_path(codex_home):
                 raise base.HarnessError("candidate used a different Codex home.")

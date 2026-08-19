@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -22,6 +23,15 @@ SPEC.loader.exec_module(module)
 
 
 class CodexEvidenceRefusalSmokeTests(unittest.TestCase):
+    def receipt_expectation(self, root: Path) -> SimpleNamespace:
+        run_root = root / "campaign"
+        receipt_parent = run_root / "receipt-outputs"
+        receipt_parent.mkdir(parents=True)
+        return SimpleNamespace(
+            run_root=run_root,
+            output_directory=receipt_parent / "command-fixture",
+        )
+
     def valid_packet(self, *, head: str = "0123456789abcdef") -> dict[str, Any]:
         return {
             "task_id": module.TASK_ID,
@@ -257,6 +267,119 @@ class CodexEvidenceRefusalSmokeTests(unittest.TestCase):
         self.assertTrue(config["plugins"][module.base.PLUGIN_ID]["enabled"])
         self.assertFalse(config["plugins"]["foreign@marketplace"]["enabled"])
         self.assertFalse(config["memories"]["use_memories"])
+
+    def test_candidate_session_config_grants_only_the_receipt_parent(self) -> None:
+        def safe_builder(**_: Any) -> dict[str, Any]:
+            return {"features": {}, "skills": {"config": []}}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            expectation = self.receipt_expectation(Path(tmp))
+            writable_root = module.receipt_writable_root(expectation)
+            baseline = module.session_config(
+                safe_session_builder=safe_builder,
+                disabled_skill_paths=[],
+                disabled_mcp_names=[],
+                plugin_ids=[module.base.PLUGIN_ID],
+                enable_core=False,
+            )
+            candidate = module.session_config(
+                safe_session_builder=safe_builder,
+                disabled_skill_paths=[],
+                disabled_mcp_names=[],
+                plugin_ids=[module.base.PLUGIN_ID],
+                enable_core=True,
+                receipt_expectation=expectation,
+            )
+
+        self.assertEqual(
+            baseline["sandbox_workspace_write"],
+            {"network_access": False, "writable_roots": []},
+        )
+        self.assertEqual(
+            candidate["sandbox_workspace_write"],
+            {"network_access": False, "writable_roots": [str(writable_root)]},
+        )
+
+    def test_effective_candidate_sandbox_requires_the_exact_narrow_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            expectation = self.receipt_expectation(Path(tmp))
+            writable_root = module.receipt_writable_root(expectation)
+            valid = {
+                "thread": {"id": "thread-fixture"},
+                "sandbox": {
+                    "type": "workspaceWrite",
+                    "networkAccess": False,
+                    "writableRoots": [str(writable_root)],
+                }
+            }
+            module.require_effective_receipt_sandbox(valid, writable_root)
+
+            for roots in ([], [str(expectation.run_root)], [str(writable_root), str(expectation.run_root)]):
+                invalid = {
+                    "thread": {"id": "thread-fixture"},
+                    "sandbox": {
+                        "type": "workspaceWrite",
+                        "networkAccess": False,
+                        "writableRoots": roots,
+                    }
+                }
+                with self.assertRaises(module.base.HarnessError):
+                    module.require_effective_receipt_sandbox(invalid, writable_root)
+
+            nested_only = {
+                "thread": {
+                    "id": "thread-fixture",
+                    "sandbox": valid["sandbox"],
+                }
+            }
+            with self.assertRaises(module.base.HarnessError):
+                module.require_effective_receipt_sandbox(nested_only, writable_root)
+
+    def test_linked_receipt_parent_is_rejected_before_thread_start(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_root = root / "campaign"
+            outside = root / "outside"
+            run_root.mkdir()
+            outside.mkdir()
+            linked = run_root / "receipt-outputs"
+            try:
+                linked.symlink_to(outside, target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"directory symlink unavailable: {exc}")
+            expectation = SimpleNamespace(
+                run_root=run_root,
+                output_directory=linked / "command-fixture",
+            )
+            with self.assertRaises(module.base.HarnessError):
+                module.receipt_writable_root(expectation)
+
+    @unittest.skipUnless(os.name == "nt", "real directory junction exists on Windows")
+    def test_real_windows_junction_receipt_parent_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_root = root / "campaign"
+            outside = root / "outside"
+            run_root.mkdir()
+            outside.mkdir()
+            junction = run_root / "receipt-outputs"
+            result = subprocess.run(
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(junction), str(outside)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                self.skipTest(f"directory junction unavailable: {result.stderr}")
+            try:
+                expectation = SimpleNamespace(
+                    run_root=run_root,
+                    output_directory=junction / "command-fixture",
+                )
+                with self.assertRaises(module.base.HarnessError):
+                    module.receipt_writable_root(expectation)
+            finally:
+                os.rmdir(junction)
 
     def test_failure_diagnostics_are_machine_readable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

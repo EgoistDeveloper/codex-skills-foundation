@@ -263,6 +263,10 @@ def _runtime_preflights(artifact_root: Path) -> dict[str, Any]:
         repository_root=positive.ROOT,
         family="runtime",
     ) as probe:
+        thread_workspace = probe.child("w")
+        thread_workspace.mkdir()
+        receipt_parent = probe.child("a") / "receipt-outputs"
+        receipt_parent.mkdir(parents=True)
         with positive.AppServer(
             command=launchers.app_server_command,
             node_executable=launchers.node_executable,
@@ -271,6 +275,22 @@ def _runtime_preflights(artifact_root: Path) -> dict[str, Any]:
             timeout_seconds=120,
         ) as server:
             codex_home = server.initialize()
+            receipt_config = positive.build_session_config(
+                disabled_skill_paths=[],
+                mcp_server_names=[],
+            )
+            evidence.configure_receipt_sandbox(receipt_config, receipt_parent)
+            thread_result = server.start_thread(
+                cwd=thread_workspace,
+                model=None,
+                model_provider=None,
+                service_tier=None,
+                session_config=receipt_config,
+            )
+            thread = thread_result.get("thread")
+            if not isinstance(thread, dict):
+                raise RehearsalError("receipt sandbox preflight returned no thread")
+            evidence.require_effective_receipt_sandbox(thread_result, receipt_parent)
     direct = positive.configured_mcp_server_names(codex_home)
     inventory = isolation.discover_runtime_mcp_inventory(
         launchers=launchers,
@@ -283,6 +303,12 @@ def _runtime_preflights(artifact_root: Path) -> dict[str, Any]:
     positive.build_session_config = isolation.startup_only_session_config_builder(original_builder)
     try:
         results: dict[str, Any] = {}
+        results["receipt_sandbox"] = {
+            "status": "PASS",
+            "writable_roots": 1,
+            "network_access": False,
+            "model_calls": 0,
+        }
         for family in ("positive", "negative"):
             campaign = trace_dir / family
             (campaign / "preflight").mkdir(parents=True)
