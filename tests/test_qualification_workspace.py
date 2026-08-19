@@ -377,6 +377,28 @@ class QualificationWorkspaceTests(unittest.TestCase):
             lease.cleanup()
             self.assertFalse(path.exists())
 
+    def test_cleanup_outlasts_a_transient_windows_sharing_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lease = self.allocate(root)
+            real_rmtree = workspace.shutil.rmtree
+            calls = 0
+
+            def transient_lock(path: object, *, onerror: object) -> None:
+                nonlocal calls
+                calls += 1
+                if calls <= 5:
+                    raise PermissionError(32, "file is being used by another process")
+                real_rmtree(path, onerror=onerror)
+
+            with mock.patch.object(workspace.shutil, "rmtree", side_effect=transient_lock):
+                lease.cleanup(delay_seconds=0)
+
+            self.assertEqual(calls, 6)
+            self.assertFalse(lease.path.exists())
+            payload = json.loads(lease.mapping_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["cleanup_status"], "CLEANED")
+
     def test_locked_cleanup_failure_is_visible_and_restoration_still_runs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

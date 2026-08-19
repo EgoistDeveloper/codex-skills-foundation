@@ -374,7 +374,8 @@ class WorkspaceLease:
             payload["cleanup_error"] = error
         return payload
 
-    def cleanup(self, *, attempts: int = 5, delay_seconds: float = 0.1) -> None:
+    def cleanup(self, *, attempts: int = 40, delay_seconds: float = 0.25) -> None:
+        """Remove the workspace after bounded retries for transient Windows handles."""
         if self.cleaned:
             return
         _relative_to(self.path, self.disposable_root, label="workspace cleanup")
