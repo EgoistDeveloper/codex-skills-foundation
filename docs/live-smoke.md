@@ -7,7 +7,7 @@ This document is for repository maintainers evaluating behavior. It is **not** a
 A normal Codex user installs the marketplace and the small core package:
 
 ```bash
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref main
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.2
 codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 
@@ -40,6 +40,8 @@ python scripts/run_exact_artifact_qualification.py \
 The wrapper first completes the zero-model exact-archive lifecycle. It then materializes a uniquely named disposable marketplace from the five qualified ZIPs and runs the current canonical repeatability, bounded-delegation, and evidence-refusal launchers. The installed Core content, packaged verifier-runner hash, subject commit, Core version, Core ZIP SHA-256, and candidate-manifest SHA-256 must agree before candidate rows are accepted. The evidence-refusal candidate runs the verifier only through the harness-supplied packaged runner execution transport. The outer event must exit zero, while its canonical receipt separately proves the exact child argv, verifier identity, child result, and captured stream artifacts. The completion packet records the deterministic child command and exact child argv rather than overloading the runner invocation, and binds those values to the execution receipt. It stops at the first non-PASS or harness error and requires exact state restoration.
 
 The wrapper performs 16 authenticated model turns: twelve from three repetitions of the positive debugging and negative tiny-edit cases, two for bounded delegation, and two for failed-evidence refusal. Its shareable summary is `LIVE` and `PARTIAL`; ChatGPT/Codex desktop, Codex Cloud, authenticated Claude Code behavior, and the Agent Plugins reference client remain `NOT_RUN`. Raw traces remain under ignored `.eval-runs/` and must still be inspected before sharing.
+
+The published `v0.3.0-beta.2` prerelease used exact commit `98658cd359a05022247622ae00e805ada6c7cfbd`, candidate-manifest SHA-256 `a22be1e252142da8abcab84a0f18006319245702f5f8f03c872c3c85d101ddcc`, zero-model campaign `20260819-221917-1ea76682`, and live campaign `20260819-222102-cb0b3908`. All in-scope Codex CLI cases passed in sixteen authenticated turns with state restoration. This remains a `PARTIAL` qualification, not a claim about the `NOT_RUN` clients.
 
 ## Explicit positive debugging smoke
 

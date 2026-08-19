@@ -2,7 +2,7 @@
 
 A portable, evidence-driven engineering foundation for Codex, ChatGPT, Codex Cloud, Claude Code, and clients that implement Agent Skills or Agent Plugins.
 
-**Public beta:** `engineering-foundation-core` `0.3.0-beta.1`. See [`docs/public-beta.md`](docs/public-beta.md) for scope, installation, updates, removal, tested behavior, and limitations.
+**Public beta:** `engineering-foundation-core` `0.3.0-beta.2`. See [`docs/public-beta.md`](docs/public-beta.md) for scope, installation, updates, removal, tested behavior, and limitations.
 
 The repository is intentionally modular. Install the small core everywhere, then add only the domain packages a project needs. This keeps discovery context smaller and reduces accidental activation.
 
@@ -10,7 +10,7 @@ The repository is intentionally modular. Install the small core everywhere, then
 
 | Package | Version in this release | Install when | Skills |
 |---|---:|---|---|
-| `engineering-foundation-core` | `0.3.0-beta.1` | General engineering work | task contract, planning, bounded orchestration, implementation, debugging, source-grounded research, review, verification, handoff |
+| `engineering-foundation-core` | `0.3.0-beta.2` | General engineering work | task contract, planning, bounded orchestration, implementation, debugging, source-grounded research, review, verification, handoff |
 | `engineering-foundation-laravel` | `0.2.1` | Laravel/PHP repositories | project-aware Laravel engineering |
 | `engineering-foundation-design` | `0.2.1` | Web/product UI work | design direction, rendered visual verification |
 | `engineering-foundation-cloud` | `0.2.1` | Codex Cloud or remote-agent setup | safe environment readiness |
@@ -33,7 +33,7 @@ Only Core has the expanded authenticated live-behavior evidence used for this be
 Use the pinned beta tag for a reproducible installation:
 
 ```bash
-codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.1
+codex plugin marketplace add EgoistDeveloper/codex-skills-foundation --ref v0.3.0-beta.2
 codex plugin add engineering-foundation-core@egoist-engineering-foundation
 ```
 
