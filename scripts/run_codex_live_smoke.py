@@ -208,6 +208,23 @@ def normalized_path(value: str | Path) -> str:
     return os.path.normcase(os.path.normpath(os.path.abspath(raw)))
 
 
+def same_existing_directory(left: object, right: object) -> bool:
+    if not isinstance(left, (str, os.PathLike)) or not isinstance(
+        right, (str, os.PathLike)
+    ):
+        return False
+    try:
+        left_path = Path(left)
+        right_path = Path(right)
+        return (
+            left_path.is_dir()
+            and right_path.is_dir()
+            and os.path.samefile(left_path, right_path)
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def path_is_under(path: str | Path, root: str | Path) -> bool:
     try:
         return os.path.commonpath([normalized_path(path), normalized_path(root)]) == normalized_path(

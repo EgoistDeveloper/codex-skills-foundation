@@ -132,6 +132,15 @@ class FakeRuntimeAppServer:
         }
 
 
+class EmptyRuntimeAppServer(FakeRuntimeAppServer):
+    def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method != "mcpServerStatus/list":
+            raise AssertionError(f"unexpected request: {method}")
+        if params["threadId"] != "runtime-probe-thread":
+            raise AssertionError("wrong thread id")
+        return {"data": [], "nextCursor": None}
+
+
 class FakeVetoAppServer:
     expected_home = Path(".").resolve()
     start_turn_calls = 0
@@ -213,6 +222,41 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
             [params["cursor"] for _, params in server.requests],
             [None, "2"],
         )
+
+    def test_status_inventory_distinguishes_empty_from_malformed(self) -> None:
+        class StaticServer:
+            def __init__(self, response: dict[str, Any]) -> None:
+                self.response = response
+
+            def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+                self.assert_request(method, params)
+                return self.response
+
+            @staticmethod
+            def assert_request(method: str, params: dict[str, Any]) -> None:
+                if method != "mcpServerStatus/list" or params["cursor"] is not None:
+                    raise AssertionError("unexpected MCP inventory request")
+
+        self.assertEqual(
+            module.mcp_status_rows(
+                StaticServer({"data": [], "nextCursor": None}),
+                thread_id="thread",
+            ),
+            [],
+        )
+        malformed = (
+            {"data": [{}], "nextCursor": None},
+            {"data": [None], "nextCursor": None},
+            {"data": [{"name": ""}], "nextCursor": None},
+            {"data": [], "nextCursor": 1},
+        )
+        for response in malformed:
+            with self.subTest(response=response):
+                with self.assertRaises(base.HarnessError):
+                    module.mcp_status_rows(
+                        StaticServer(response),
+                        thread_id="thread",
+                    )
 
     def test_name_veto_unions_direct_and_runtime_sources(self) -> None:
         names = module.merge_mcp_server_names(
@@ -368,6 +412,36 @@ class CodexNegativeSmokeV4Tests(unittest.TestCase):
             module.RUNTIME_PROBE_STABLE_POLLS = original_stable
         self.assertEqual([row["name"] for row in rows], ["fable-advisor-python3"])
         self.assertEqual(FakeRuntimeAppServer.start_turn_calls, 0)
+
+    def test_runtime_discovery_accepts_a_stable_empty_inventory(self) -> None:
+        launchers = base.CodexLaunchers(
+            cli_prefix=("node", "codex.js"),
+            app_server_command=("node", "codex.js", "app-server", "--listen", "stdio://"),
+            node_executable="node",
+            version_text="codex-cli 0.147.0",
+            version=(0, 147, 0),
+        )
+        original_app_server = module.base.AppServer
+        original_poll = module.RUNTIME_PROBE_POLL_SECONDS
+        original_stable = module.RUNTIME_PROBE_STABLE_POLLS
+        EmptyRuntimeAppServer.expected_home = ROOT.resolve()
+        EmptyRuntimeAppServer.start_turn_calls = 0
+        module.base.AppServer = EmptyRuntimeAppServer
+        module.RUNTIME_PROBE_POLL_SECONDS = 0
+        module.RUNTIME_PROBE_STABLE_POLLS = 1
+        try:
+            rows = module.discover_runtime_mcp_inventory(
+                launchers=launchers,
+                codex_home=ROOT.resolve(),
+                cwd=ROOT.resolve(),
+                timeout_seconds=5,
+            )
+        finally:
+            module.base.AppServer = original_app_server
+            module.RUNTIME_PROBE_POLL_SECONDS = original_poll
+            module.RUNTIME_PROBE_STABLE_POLLS = original_stable
+        self.assertEqual(rows, [])
+        self.assertEqual(EmptyRuntimeAppServer.start_turn_calls, 0)
 
     def test_veto_verification_starts_no_model_turn_and_rejects_leaks(self) -> None:
         launchers = base.CodexLaunchers(

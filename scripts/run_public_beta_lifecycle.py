@@ -338,9 +338,7 @@ def discover_namespaced_skills(
             timeout_seconds=120,
         ) as server:
             reported_home = server.initialize()
-            if base.normalized_path(reported_home) != base.normalized_path(
-                expected_codex_home
-            ):
+            if not base.same_existing_directory(reported_home, expected_codex_home):
                 raise LifecycleError(
                     f"app-server used the wrong CODEX_HOME: {reported_home}"
                 )
