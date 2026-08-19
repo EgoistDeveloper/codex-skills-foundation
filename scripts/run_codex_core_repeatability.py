@@ -16,7 +16,6 @@ import os
 import signal
 import subprocess
 import sys
-import tempfile
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
@@ -76,6 +75,7 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
             repo_root=_impl.ROOT,
             candidate_version=subject_version,
         )
+        self.repo_root = getattr(self.guard, "repo_root", _impl.ROOT)
         self.codex_home: Path | None = None
         self.restored = False
         self.restore_error: str | None = None
@@ -83,14 +83,15 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
         self.config_restored = False
 
     def __enter__(self) -> "CampaignStateGuard":
-        with tempfile.TemporaryDirectory(
-            prefix="engineering-foundation-repeatability-state-"
-        ) as tmp:
+        with base.qualification_workspace.allocate_probe_workspace(
+            repository_root=_impl.ROOT,
+            family="stateprobe",
+        ) as probe_workspace:
             with base.AppServer(
                 command=self.launchers.app_server_command,
                 node_executable=self.launchers.node_executable,
                 cwd=_impl.ROOT,
-                trace_path=Path(tmp) / "home-trace.jsonl",
+                trace_path=probe_workspace.child("t"),
                 timeout_seconds=120,
             ) as server:
                 self.codex_home = server.initialize()
@@ -111,7 +112,9 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
         try:
-            current_before = base.read_plugin_state(self.launchers, _impl.ROOT)
+            current_before = base.read_plugin_state(
+                self.launchers, self.repo_root
+            )
             # An interrupted child may have added the marketplace. Mark it as
             # parent-added only when it is still present and was absent in the
             # snapshot, avoiding a double-remove after normal child cleanup.
@@ -124,7 +127,9 @@ class CampaignStateGuard(AbstractContextManager["CampaignStateGuard"]):
             self.restore_error = str(error)
 
         try:
-            self.current_state = base.read_plugin_state(self.launchers, _impl.ROOT)
+            self.current_state = base.read_plugin_state(
+                self.launchers, self.repo_root
+            )
             self.config_restored = self._config_matches_snapshot()
             self.restored = (
                 plugin_states_equal(self.current_state, self.guard.original)
@@ -504,12 +509,13 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(base.qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted after checkpoint and state restoration.", file=sys.stderr)
         raise SystemExit(130)
     except (
         base.HarnessError,
+        base.qualification_workspace.WorkspaceError,
         OSError,
         subprocess.SubprocessError,
         json.JSONDecodeError,

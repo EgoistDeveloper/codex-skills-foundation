@@ -131,7 +131,17 @@ def create_fixture(seed: Path) -> None:
 
 
 def clone_fixture(seed: Path, destination: Path) -> None:
-    base.run_process(["git", "clone", "--quiet", str(seed), str(destination)])
+    base.run_process(
+        [
+            "git",
+            "-c",
+            "core.longpaths=true",
+            "clone",
+            "--quiet",
+            str(seed),
+            str(destination),
+        ]
+    )
     base.git(["config", "user.name", "Engineering Foundation Delegation Smoke"], cwd=destination)
     base.git(
         ["config", "user.email", "delegation-smoke@example.invalid"],
@@ -735,9 +745,14 @@ def main() -> int:
     campaign = base.campaign_directory(output_root)
     campaign_id = f"codex-bounded-delegation-{campaign.name}"
 
-    seed = campaign / "seed"
-    baseline_workspace = campaign / "workspaces" / "baseline"
-    candidate_workspace = campaign / "workspaces" / "candidate"
+    workspace_lease = base.qualification_workspace.allocate_workspace(
+        artifact_root=campaign,
+        mapping_path=campaign / "workspace-map.json",
+        identity={"campaign": campaign.name, "family": "delegation"},
+    )
+    seed = workspace_lease.child("s")
+    baseline_workspace = workspace_lease.child("b")
+    candidate_workspace = workspace_lease.child("c")
     baseline_dir = campaign / "baseline"
     candidate_dir = campaign / "candidate"
     preflight_dir = campaign / "preflight"
@@ -957,7 +972,7 @@ def main() -> int:
                 run_dir=candidate_dir,
                 expected_head=seed_head,
                 subject_version=candidate_version,
-                subject_commit=harness_commit,
+                subject_commit=base.candidate_subject_commit(harness_commit),
                 harness_commit=harness_commit,
                 campaign_id=campaign_id,
                 client_version=client_version,
@@ -969,8 +984,9 @@ def main() -> int:
                 disabled_mcp_names=disabled_mcp_names,
                 startup_overrides=candidate_overrides,
             )
+            base.bind_candidate_evaluation(candidate_evaluation)
 
-        current_state = base.read_plugin_state(launchers, base.ROOT)
+        current_state = base.read_plugin_state(launchers, guard.repo_root)
         plugin_state_restored = current_state == original_state
         config_path = codex_home / "config.toml"
         config_restored = (
@@ -1061,7 +1077,10 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(base.qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted.", file=sys.stderr)
         raise SystemExit(130)
+    except base.qualification_workspace.WorkspaceError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        raise SystemExit(1)

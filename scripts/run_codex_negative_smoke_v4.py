@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -55,14 +54,28 @@ def mcp_status_rows(
                 "mcpServerStatus/list returned an invalid data field."
             )
 
-        for item in data:
+        for index, item in enumerate(data):
             if not isinstance(item, dict):
-                continue
+                raise base.HarnessError(
+                    f"mcpServerStatus/list row {index} is not an object."
+                )
             name = item.get("name")
             if not isinstance(name, str) or not name.strip():
-                continue
+                raise base.HarnessError(
+                    f"mcpServerStatus/list row {index} has no valid name."
+                )
             plugin_id = item.get("pluginId")
+            if plugin_id is not None and (
+                not isinstance(plugin_id, str) or not plugin_id.strip()
+            ):
+                raise base.HarnessError(
+                    f"mcpServerStatus/list row {index} has an invalid plugin id."
+                )
             tools = item.get("tools")
+            if tools is not None and not isinstance(tools, dict):
+                raise base.HarnessError(
+                    f"mcpServerStatus/list row {index} has an invalid tools field."
+                )
             rows.append(
                 {
                     "name": name,
@@ -81,8 +94,12 @@ def mcp_status_rows(
             )
 
         next_cursor = response.get("nextCursor")
-        if not isinstance(next_cursor, str) or not next_cursor:
+        if next_cursor is None:
             break
+        if not isinstance(next_cursor, str) or not next_cursor.strip():
+            raise base.HarnessError(
+                "mcpServerStatus/list returned an invalid next cursor."
+            )
         cursor = next_cursor
 
     unique: dict[tuple[str, str], dict[str, Any]] = {}
@@ -233,7 +250,7 @@ def poll_runtime_inventory(
             previous_signature = signature
             stable_polls = 0
 
-        if current and stable_polls >= RUNTIME_PROBE_STABLE_POLLS:
+        if stable_polls >= RUNTIME_PROBE_STABLE_POLLS:
             break
         time.sleep(RUNTIME_PROBE_POLL_SECONDS)
 
@@ -254,8 +271,11 @@ def discover_runtime_mcp_inventory(
     if timeout_seconds < 5:
         raise base.HarnessError("runtime MCP probe timeout must be at least five seconds.")
 
-    with tempfile.TemporaryDirectory(prefix="engineering-foundation-mcp-probe-") as tmp:
-        trace_path = Path(tmp) / "runtime-mcp-probe-trace.jsonl"
+    with base.qualification_workspace.allocate_probe_workspace(
+        repository_root=base.ROOT,
+        family="mcpprobe",
+    ) as probe_workspace:
+        trace_path = probe_workspace.child("t")
         request_timeout = max(30, min(timeout_seconds, 120))
         with base.AppServer(
             command=launchers.app_server_command,
@@ -265,7 +285,7 @@ def discover_runtime_mcp_inventory(
             timeout_seconds=request_timeout,
         ) as server:
             reported_home = server.initialize()
-            if base.normalized_path(reported_home) != base.normalized_path(codex_home):
+            if not base.same_existing_directory(reported_home, codex_home):
                 raise base.HarnessError(
                     "runtime MCP probe used a different Codex home directory."
                 )
@@ -288,10 +308,6 @@ def discover_runtime_mcp_inventory(
                 timeout_seconds=timeout_seconds,
             )
 
-    if not inventory:
-        raise base.HarnessError(
-            "runtime MCP probe returned no inventory; live model turns were not started."
-        )
     return inventory
 
 
@@ -316,12 +332,13 @@ def verify_runtime_mcp_veto(
         enabled_plugin_id=None,
     )
 
-    temporary: tempfile.TemporaryDirectory[str] | None
+    temporary: base.qualification_workspace.WorkspaceLease | None
     if campaign is None:
-        temporary = tempfile.TemporaryDirectory(
-            prefix="engineering-foundation-mcp-veto-"
+        temporary = base.qualification_workspace.allocate_probe_workspace(
+            repository_root=base.ROOT,
+            family="mcpveto",
         )
-        trace_path = Path(temporary.name) / "runtime-mcp-veto-trace.jsonl"
+        trace_path = temporary.child("t")
     else:
         temporary = None
         trace_path = campaign / "preflight" / "runtime-mcp-veto-trace.jsonl"
@@ -336,7 +353,7 @@ def verify_runtime_mcp_veto(
             timeout_seconds=max(30, min(timeout_seconds, 120)),
         ) as server:
             reported_home = server.initialize()
-            if base.normalized_path(reported_home) != base.normalized_path(codex_home):
+            if not base.same_existing_directory(reported_home, codex_home):
                 raise base.HarnessError(
                     "runtime MCP veto verification used a different Codex home directory."
                 )
@@ -522,7 +539,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(base.qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted.", file=sys.stderr)
         raise SystemExit(130)

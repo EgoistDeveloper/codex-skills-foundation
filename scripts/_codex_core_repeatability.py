@@ -343,6 +343,11 @@ def child_identity(summary: dict[str, Any], rows: list[dict[str, Any]]) -> dict[
         "harness_commit": candidate_row.get("harness_commit"),
         "subject_version": candidate_row.get("subject_version"),
         "subject_commit": candidate_row.get("subject_commit"),
+        "candidate_repository": candidate_row.get("candidate_repository"),
+        "candidate_manifest_sha256": candidate_row.get(
+            "candidate_manifest_sha256"
+        ),
+        "package_sha256": candidate_row.get("package_sha256"),
         "model": candidate.get("model"),
         "model_provider": candidate.get("model_provider"),
         "service_tier": candidate.get("service_tier"),

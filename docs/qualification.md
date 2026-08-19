@@ -14,6 +14,14 @@ Repository validation, provider package validation, and live behavior qualificat
 
 Actual run IDs and results for the released revision belong in `docs/release-evidence.md`.
 
+## Exact beta artifact identity
+
+The unreleased beta.2 candidate uses `scripts/release_candidate.py` as the single deterministic identity owner. Its manifest contains no timestamps or local paths: it binds a clean, non-detached Git commit; the intended future prerelease tag; catalog and provider marketplace hashes; exact package names, versions, filenames, byte sizes, SHA-256 values, archive-derived content hashes, and skill counts; plus the exact `SHA256SUMS` hash. The checksum graph is acyclic because package ZIPs are hashed by `SHA256SUMS`, while the separately distributed candidate manifest records the checksum-file hash and is not listed inside `SHA256SUMS`.
+
+Runtime evidence is separate. `scripts/run_exact_artifact_qualification.py` copies the already-qualified bytes into a bounded ignored run directory, runs the zero-model lifecycle only from those archives, and—when explicitly authorized—runs the accepted Codex CLI cases against a unique disposable candidate marketplace created from the exact Core ZIP. Every candidate live row must match the manifest commit, Core version, Core ZIP digest, and candidate-manifest digest. The failed-evidence case additionally requires one trusted packaged runner execution event and one receipt-owned child verifier identity. The receipt binds the campaign, turn nonce, runner, workspace, exact child argv, executable, verifier, exact child exit code, and captured stream hashes; the completion packet must separately reproduce the canonical child command and exact argv while binding the same execution receipt. Ambient Core, source-tree fallback, stale rows, mixed manifests, packet-only claims, shell-normalized exits, runner/verifier substitution, and artifacts outside the bounded run fail closed.
+
+The resulting status remains `PARTIAL`: authenticated Codex CLI covers the existing four Core behavior classes, while ChatGPT/Codex desktop, Codex Cloud, Claude Code authenticated behavior, and an Agent Plugins reference client remain `NOT_RUN`. CI runs the lifecycle-only path and does not require model credentials.
+
 ## Live behavior matrix
 
 | Surface | Install | Positive trigger | Negative trigger | Behavior | Safety | Evidence | Status |

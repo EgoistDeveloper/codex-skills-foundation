@@ -12,7 +12,6 @@ import dataclasses
 import json
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -112,10 +111,11 @@ def main() -> int:
     original_launchers = base.resolve_codex_launchers()
     base.login_status(original_launchers)
 
-    with tempfile.TemporaryDirectory(
-        prefix="engineering-foundation-positive-isolation-"
-    ) as tmp:
-        trace_path = Path(tmp) / "inventory-trace.jsonl"
+    with base.qualification_workspace.allocate_probe_workspace(
+        repository_root=base.ROOT,
+        family="positiveprobe",
+    ) as probe_workspace:
+        trace_path = probe_workspace.child("t")
         with base.AppServer(
             command=original_launchers.app_server_command,
             node_executable=original_launchers.node_executable,
@@ -230,12 +230,13 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        raise SystemExit(base.qualification_workspace.run_with_cleanup(main))
     except KeyboardInterrupt:
         print("ERROR: interrupted.", file=sys.stderr)
         raise SystemExit(130)
     except (
         base.HarnessError,
+        base.qualification_workspace.WorkspaceError,
         OSError,
         subprocess.SubprocessError,
         json.JSONDecodeError,

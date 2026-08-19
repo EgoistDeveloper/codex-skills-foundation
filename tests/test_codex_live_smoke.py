@@ -24,6 +24,41 @@ class CodexLiveSmokeTests(unittest.TestCase):
         with self.assertRaises(module.HarnessError):
             module.parse_version("Codex unknown")
 
+    def test_desktop_cli_path_supports_nested_config_shapes(self) -> None:
+        self.assertEqual(
+            module.configured_codex_cli_path(
+                {
+                    "shell_environment_policy": {
+                        "set": {"CODEX_CLI_PATH": "C:/private/codex.exe"}
+                    }
+                }
+            ),
+            "C:/private/codex.exe",
+        )
+        self.assertEqual(
+            module.configured_codex_cli_path(
+                {
+                    "CODEX_CLI_PATH": "C:/direct/codex.exe",
+                    "shell_environment_policy": {
+                        "set": {"CODEX_CLI_PATH": "C:/nested/codex.exe"}
+                    },
+                }
+            ),
+            "C:/direct/codex.exe",
+        )
+        self.assertEqual(
+            module.configured_codex_cli_path(
+                {
+                    "mcp_servers": {
+                        "node_repl": {
+                            "env": {"CODEX_CLI_PATH": "C:/mcp/codex.exe"}
+                        }
+                    }
+                }
+            ),
+            "C:/mcp/codex.exe",
+        )
+
     def test_live_prompt_requires_pre_edit_reproduction(self) -> None:
         self.assertIn("İlk üretim kodu değişikliğinden önce", module.LIVE_PROMPT)
         self.assertIn(module.TEST_COMMAND, module.LIVE_PROMPT)
@@ -83,8 +118,14 @@ class CodexLiveSmokeTests(unittest.TestCase):
                 "params": {
                     "item": {
                         "type": "commandExecution",
+                        "id": "command-1",
                         "command": "node smoke-test.mjs",
                         "exitCode": 1,
+                        "cwd": "C:/workspace",
+                        "status": "completed",
+                        "commandActions": [{"command": "node smoke-test.mjs"}],
+                        "source": "agent",
+                        "processId": 4321,
                         "aggregatedOutput": (
                             module.TEST_START_MARKER + "\n" + module.TEST_FAIL_MARKER
                         ),
@@ -134,7 +175,14 @@ class CodexLiveSmokeTests(unittest.TestCase):
             skill=(module.SKILL_QUALIFIED_NAME, "C:/plugin/SKILL.md"),
         )
         self.assertEqual(turn.thread_id, "thread-1")
-        self.assertTrue(module.test_command_state(turn.commands[0])["failed"])
+        command = turn.commands[0]
+        self.assertTrue(module.test_command_state(command)["failed"])
+        self.assertEqual(command.event_id, "command-1")
+        self.assertEqual(command.cwd, "C:/workspace")
+        self.assertEqual(command.status, "completed")
+        self.assertEqual(command.command_actions, ("node smoke-test.mjs",))
+        self.assertEqual(command.source, "agent")
+        self.assertEqual(command.process_id, 4321)
         self.assertEqual(turn.file_change_indexes, [1])
         self.assertEqual(turn.final_message, "Düzeltme tamamlandı.")
         self.assertEqual(module.usage_total_tokens(turn.usage), 1234)
@@ -158,6 +206,34 @@ class CodexLiveSmokeTests(unittest.TestCase):
         )
         self.assertFalse(module.test_command_state(command_not_found)["failed"])
         self.assertFalse(module.test_command_state(command_not_found)["started"])
+
+    def test_turn_parser_rejects_boolean_command_exit_code(self) -> None:
+        turn = module.parse_live_turn(
+            variant="candidate",
+            thread_result={
+                "thread": {"id": "thread-1"},
+                "model": "gpt-test",
+                "modelProvider": "openai",
+                "serviceTier": None,
+            },
+            turn_id="turn-1",
+            events=[
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "item": {
+                            "type": "commandExecution",
+                            "command": "echo malformed",
+                            "exitCode": False,
+                        }
+                    },
+                }
+            ],
+            duration_ms=1,
+            stderr="",
+            skill=None,
+        )
+        self.assertIsNone(turn.commands[0].exit_code)
 
     def test_session_config_disables_ambient_capabilities(self) -> None:
         config = module.build_session_config(

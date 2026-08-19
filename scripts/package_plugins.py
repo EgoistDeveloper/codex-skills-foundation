@@ -26,6 +26,10 @@ WINDOWS_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
 REQUIRED_PLUGIN_FILES = {
     "engineering-foundation-core": {
         Path("skills/verify-before-completion/scripts/evidence_gate.py"),
+        Path(
+            "skills/verify-before-completion/scripts/"
+            "run_verifier_with_receipt.py"
+        ),
     },
 }
 

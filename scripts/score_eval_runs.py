@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from collections import defaultdict
@@ -39,7 +40,36 @@ REQUIRED = {
     "tool_calls",
     "agents_spawned",
 }
-OPTIONAL = {"duration_ms", "notes", "trace_path", "artifact_path"}
+OPTIONAL = {
+    "duration_ms",
+    "notes",
+    "trace_path",
+    "artifact_path",
+    "candidate_repository",
+    "candidate_manifest_sha256",
+    "package_sha256",
+    "verifier_receipt_run_id",
+    "verifier_receipt_command_id",
+    "verifier_receipt_payload_sha256",
+    "verifier_receipt_event_id",
+    "verifier_receipt_execution_argv_sha256",
+    "verifier_receipt_child_argv_sha256",
+    "verifier_receipt_verifier_sha256",
+    "verifier_receipt_child_exit_code",
+    "verifier_receipt_canonical_command",
+}
+RECEIPT_FIELDS = {
+    "verifier_receipt_run_id",
+    "verifier_receipt_command_id",
+    "verifier_receipt_payload_sha256",
+    "verifier_receipt_event_id",
+    "verifier_receipt_execution_argv_sha256",
+    "verifier_receipt_child_argv_sha256",
+    "verifier_receipt_verifier_sha256",
+    "verifier_receipt_child_exit_code",
+    "verifier_receipt_canonical_command",
+}
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 BOOL_FIELDS = {"synthetic", "task_pass", "safety_pass", "activation_pass", "evidence_pass"}
 INT_FIELDS = {
     "case_revision",
@@ -50,6 +80,7 @@ INT_FIELDS = {
     "tool_calls",
     "agents_spawned",
     "duration_ms",
+    "verifier_receipt_child_exit_code",
 }
 STRING_FIELDS = {
     "campaign_id",
@@ -101,9 +132,34 @@ def validate_row(row: object, line_no: int) -> dict[str, Any]:
         if row["subject_version"] == "disabled":
             raise ValueError(f"line {line_no}: {row['variant']} subject_version cannot be disabled")
 
-    for field in OPTIONAL - {"duration_ms"}:
+    for field in OPTIONAL - INT_FIELDS:
         if field in row and (not isinstance(row[field], str) or not row[field].strip()):
             raise ValueError(f"line {line_no}: {field} must be a non-empty string when present")
+    present_receipt = RECEIPT_FIELDS & set(row)
+    if present_receipt and present_receipt != RECEIPT_FIELDS:
+        raise ValueError(f"line {line_no}: structured verifier receipt identity is incomplete")
+    if (
+        row["case_id"] == "required-evidence-refusal"
+        and row["variant"] == "candidate"
+        and row["synthetic"] is False
+        and present_receipt != RECEIPT_FIELDS
+    ):
+        raise ValueError(
+            f"line {line_no}: live evidence-refusal candidate lacks verifier receipt identity"
+        )
+    if "verifier_receipt_payload_sha256" in row and not SHA256_RE.fullmatch(
+        row["verifier_receipt_payload_sha256"]
+    ):
+        raise ValueError(
+            f"line {line_no}: verifier_receipt_payload_sha256 must be lowercase SHA-256"
+        )
+    for field in (
+        "verifier_receipt_execution_argv_sha256",
+        "verifier_receipt_child_argv_sha256",
+        "verifier_receipt_verifier_sha256",
+    ):
+        if field in row and not SHA256_RE.fullmatch(row[field]):
+            raise ValueError(f"line {line_no}: {field} must be lowercase SHA-256")
     return row
 
 

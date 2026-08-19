@@ -168,6 +168,8 @@ class PublicBetaLifecycleTests(unittest.TestCase):
         self.assertIn("marketplace_upgrade:PASS", source)
         self.assertIn("all_packages_discovery:PASS", source)
         self.assertIn("all_packages_remove:PASS", source)
+        self.assertIn("verifier_receipt_runner_identity:PASS", source)
+        self.assertIn('result["installed_verifier_runner_sha256"]', source)
         self.assertNotIn("turn/start", source)
 
 
