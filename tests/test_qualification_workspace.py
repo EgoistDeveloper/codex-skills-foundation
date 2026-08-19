@@ -445,6 +445,11 @@ class QualificationWorkspaceTests(unittest.TestCase):
         self.assertIn("@openai/codex@0.148.0-alpha.15", workflow)
         self.assertNotIn("@openai/codex@0.146.0", workflow)
 
+    def test_zero_model_ci_keeps_downloaded_candidates_out_of_the_git_worktree(self) -> None:
+        workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("path: .eval-runs/exact-artifact-candidate", workflow)
+        self.assertNotIn("artifacts/candidate", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
